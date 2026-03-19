@@ -1,79 +1,65 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>SkyDeck — Bluesky Client</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/style.css"/>
 </head>
 <body>
 
-<!-- ===== LOGIN SCREEN ===== -->
-<div id="login-screen" class="login-screen">
-  <div class="login-bg">
-    <div class="login-blob b1"></div>
-    <div class="login-blob b2"></div>
-    <div class="login-blob b3"></div>
-  </div>
+<!-- ===== LOGIN ===== -->
+<div id="login-screen">
+  <div class="login-bg"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
   <div class="login-card">
     <div class="login-logo">
-      <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-        <circle cx="20" cy="20" r="20" fill="#0085ff"/>
-        <path d="M12 15.5C14.5 11 18 9 20 9C22 9 25.5 11 28 15.5C30 19 30 25 28 27.5C26.5 29.5 23.5 31 20 31C16.5 31 13.5 29.5 12 27.5C10 25 10 19 12 15.5Z" fill="white" opacity="0.9"/>
-        <path d="M20 13C18.5 15.5 17 19 17 22C17 25 18.5 28 20 28C21.5 28 23 25 23 22C23 19 21.5 15.5 20 13Z" fill="#0085ff"/>
-      </svg>
-      <span class="login-brand">SkyDeck</span>
+      <svg width="36" height="36" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="#0085ff"/><path d="M12 15.5C14.5 11 18 9 20 9s5.5 2 8 6.5c2 3.5 2 9.5 0 12C26.5 29.5 23.5 31 20 31s-6.5-1.5-8-3.5c-2-2.5-2-8.5 0-12z" fill="white" opacity=".9"/><path d="M20 13c-1.5 2.5-3 6-3 9s1.5 6 3 6 3-3 3-6-1.5-6.5-3-9z" fill="#0085ff"/></svg>
+      <span>SkyDeck</span>
     </div>
-    <h1 class="login-title">Blueskyへようこそ</h1>
-    <p class="login-subtitle">アカウントに接続してください</p>
+    <h1 class="login-title">Blueskyにログイン</h1>
+    <p class="login-sub">アプリパスワードを使用してください</p>
+
+    <div class="login-tip">
+      <strong>⚠️ よくある認証エラーの原因</strong>
+      <ul>
+        <li>通常のパスワードではなく<strong>アプリパスワード</strong>を使用する</li>
+        <li>ハンドルに<strong>@をつけない</strong>（例: name.bsky.social）</li>
+        <li>アプリパスワードは設定→アプリパスワードで発行</li>
+      </ul>
+    </div>
 
     <div class="form-group">
       <label class="form-label">ハンドル</label>
-      <div class="input-wrap">
-        <span class="input-prefix">@</span>
-        <input type="text" id="login-handle" class="form-input" placeholder="yourname.bsky.social" autocomplete="username" />
-      </div>
+      <div class="input-wrap"><span class="input-pre">@</span>
+      <input type="text" id="login-handle" class="form-input" placeholder="yourname.bsky.social"/></div>
     </div>
     <div class="form-group">
       <label class="form-label">
         アプリパスワード
-        <a href="https://bsky.app/settings/app-passwords" target="_blank" class="label-link">取得方法 ↗</a>
+        <a href="https://bsky.app/settings/app-passwords" target="_blank" class="label-link">発行する↗</a>
       </label>
-      <input type="password" id="login-password" class="form-input" placeholder="xxxx-xxxx-xxxx-xxxx" autocomplete="current-password" />
+      <input type="password" id="login-password" class="form-input" placeholder="xxxx-xxxx-xxxx-xxxx"/>
     </div>
-
     <div id="login-error" class="login-error hidden"></div>
-
-    <button id="login-btn" class="btn-primary login-btn">
+    <button id="login-btn" class="btn-primary">
       <span class="btn-text">ログイン</span>
-      <span class="btn-spinner hidden">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="40" stroke-dashoffset="20" class="spin-circle"/></svg>
-      </span>
+      <span class="btn-spinner hidden"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="40" stroke-dashoffset="20" class="spin-el"/></svg></span>
     </button>
-
-    <p class="login-note">
-      ⚠️ アプリパスワードはブラウザのlocalStorageに保存されます。<br />
-      共用PCでの使用は避けてください。
-    </p>
+    <p class="login-note">パスワードはlocalStorageに保存されます。共用PCでの使用はご注意ください。</p>
   </div>
 </div>
 
-<!-- ===== MAIN APP ===== -->
-<div id="app" class="app hidden">
+<!-- ===== APP ===== -->
+<div id="app" class="hidden">
 
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-logo">
-      <svg width="28" height="28" viewBox="0 0 40 40" fill="none">
-        <circle cx="20" cy="20" r="20" fill="#0085ff"/>
-        <path d="M12 15.5C14.5 11 18 9 20 9C22 9 25.5 11 28 15.5C30 19 30 25 28 27.5C26.5 29.5 23.5 31 20 31C16.5 31 13.5 29.5 12 27.5C10 25 10 19 12 15.5Z" fill="white" opacity="0.9"/>
-        <path d="M20 13C18.5 15.5 17 19 17 22C17 25 18.5 28 20 28C21.5 28 23 25 23 22C23 19 15.5 15.5 20 13Z" fill="#0085ff"/>
-      </svg>
+      <svg width="26" height="26" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="#0085ff"/><path d="M12 15.5C14.5 11 18 9 20 9s5.5 2 8 6.5c2 3.5 2 9.5 0 12C26.5 29.5 23.5 31 20 31s-6.5-1.5-8-3.5c-2-2.5-2-8.5 0-12z" fill="white" opacity=".9"/><path d="M20 13c-1.5 2.5-3 6-3 9s1.5 6 3 6 3-3 3-6-1.5-6.5-3-9z" fill="#0085ff"/></svg>
       <span>SkyDeck</span>
     </div>
-
     <nav class="sidebar-nav">
       <button class="nav-item active" data-tab="home">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -84,130 +70,299 @@
         <span>通知</span>
         <span id="notif-badge" class="badge hidden">0</span>
       </button>
-      <button class="nav-item" data-tab="my-posts">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-        <span>自分の投稿</span>
+      <button class="nav-item" data-tab="search">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <span>検索</span>
       </button>
-      <button class="nav-item" data-tab="following">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        <span>フォロー中</span>
+      <button class="nav-item" data-tab="dm">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span>DM</span>
+      </button>
+      <button class="nav-item" data-tab="lists">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        <span>リスト</span>
+      </button>
+      <button class="nav-item" data-tab="profile">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        <span>プロフィール</span>
+      </button>
+      <button class="nav-item" data-tab="settings">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>設定</span>
       </button>
     </nav>
-
     <div class="sidebar-bottom">
-      <div class="user-chip" id="user-chip">
-        <img id="user-avatar" class="user-chip-avatar" src="" alt="" />
-        <div class="user-chip-info">
-          <span id="user-displayname" class="user-chip-name">—</span>
-          <span id="user-handle" class="user-chip-handle">@—</span>
-        </div>
+      <img id="user-avatar" class="user-avatar" src="" alt=""/>
+      <div class="user-info">
+        <span id="user-displayname" class="user-name">—</span>
+        <span id="user-handle" class="user-handle">@—</span>
       </div>
       <button id="logout-btn" class="logout-btn" title="ログアウト">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       </button>
     </div>
   </aside>
 
-  <!-- Main content -->
+  <!-- Main -->
   <main class="main-content">
 
-    <!-- Compose area -->
+    <!-- 投稿エリア（home/profile時に表示） -->
     <section class="compose-area" id="compose-area">
-      <div class="compose-header">
-        <img id="compose-avatar" class="compose-avatar" src="" alt="" />
+      <div class="compose-inner">
+        <img id="compose-avatar" class="compose-av" src="" alt=""/>
         <div class="compose-body">
-          <textarea
-            id="compose-text"
-            class="compose-textarea"
-            placeholder="今何を考えていますか？"
-            maxlength="300"
-            rows="3"
-          ></textarea>
-
-          <!-- Reply context -->
-          <div id="reply-context" class="reply-context hidden">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
-            <span id="reply-to-text">返信先: </span>
+          <div id="reply-ctx" class="reply-ctx hidden">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+            <span id="reply-to-text"></span>
             <button id="cancel-reply-btn" class="cancel-reply">✕</button>
           </div>
-
-          <!-- Image preview -->
-          <div id="image-preview-area" class="image-preview-area hidden"></div>
-
+          <textarea id="compose-text" class="compose-ta" placeholder="今何を考えていますか？" maxlength="320" rows="3"></textarea>
+          <div id="image-preview-area" class="preview-area hidden"></div>
           <div class="compose-footer">
             <div class="compose-tools">
-              <label class="tool-btn" title="画像を追加">
+              <label class="tool-btn" title="画像を追加（最大4枚）">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><polyline points="21 15 16 10 5 21"/></svg>
-                <input type="file" id="image-input" accept="image/*" multiple style="display:none" />
+                <input type="file" id="image-input" accept="image/*" multiple style="display:none"/>
               </label>
+              <button id="save-draft-btn" class="tool-btn" title="下書き保存">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              </button>
+              <button id="drafts-btn" class="tool-btn" title="下書き一覧">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+              </button>
+              <select id="reply-restriction" class="restriction-select" title="返信できるユーザーを設定">
+                <option value="everybody">全員が返信可</option>
+                <option value="following">フォロー中のみ</option>
+                <option value="followers">フォロワーのみ</option>
+                <option value="mentionedUsers">メンションしたユーザーのみ</option>
+                <option value="nobody">返信不可</option>
+              </select>
             </div>
             <div class="compose-right">
               <span id="char-count" class="char-count">300</span>
               <button id="post-btn" class="btn-post">
                 <span class="btn-text">投稿する</span>
-                <span class="btn-spinner hidden"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="40" stroke-dashoffset="20" class="spin-circle"/></svg></span>
+                <span class="btn-spinner hidden"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="40" stroke-dashoffset="20" class="spin-el"/></svg></span>
               </button>
             </div>
+          </div>
+          <!-- 下書きパネル -->
+          <div id="drafts-panel" class="drafts-panel hidden">
+            <div class="drafts-header">下書き一覧</div>
+            <div id="drafts-list"></div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Tab content -->
-    <div class="tabs-container">
+    <!-- ===== HOME ===== -->
+    <section id="tab-home" class="tab-section active">
+      <div class="section-head">
+        <div class="sub-tabs">
+          <button class="sub-tab" data-sub="discover">Discover</button>
+          <button class="sub-tab active" data-sub="following">Following</button>
+          <button class="sub-tab" data-sub="video">Video</button>
+        </div>
+        <button class="refresh-btn" data-target="home">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        </button>
+      </div>
+      <div id="home-feed" class="feed"></div>
+    </section>
 
-      <!-- Home timeline -->
-      <section id="tab-home" class="tab-section active">
-        <div class="section-header">
-          <h2 class="section-title">ホームタイムライン</h2>
-          <button class="refresh-btn" data-target="home">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+    <!-- ===== NOTIFICATIONS ===== -->
+    <section id="tab-notifications" class="tab-section hidden">
+      <div class="section-head">
+        <div class="sub-tabs">
+          <button class="sub-tab active" data-sub="all">すべて</button>
+          <button class="sub-tab" data-sub="mention">メンション</button>
+        </div>
+        <button class="refresh-btn" data-target="notifications">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        </button>
+      </div>
+      <div id="notif-feed" class="feed"></div>
+    </section>
+
+    <!-- ===== SEARCH ===== -->
+    <section id="tab-search" class="tab-section hidden">
+      <div class="section-head">
+        <div class="search-box-wrap">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="search-input" class="search-box" placeholder="投稿・ユーザーを検索…"/>
+        </div>
+      </div>
+      <div class="sub-tabs" style="padding:0 16px 8px">
+        <button class="sub-tab active" data-sub="posts">投稿</button>
+        <button class="sub-tab" data-sub="users">ユーザー</button>
+      </div>
+      <div id="search-feed" class="feed"></div>
+    </section>
+
+    <!-- ===== DM ===== -->
+    <section id="tab-dm" class="tab-section hidden">
+      <div class="section-head">
+        <h2 class="section-title">ダイレクトメッセージ</h2>
+        <button class="refresh-btn" data-target="dm">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        </button>
+      </div>
+      <div id="dm-list" class="feed"></div>
+      <!-- チャットパネル -->
+      <div id="dm-chat-panel" class="dm-chat-panel hidden">
+        <div class="dm-chat-header">
+          <button id="dm-back-btn" class="icon-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <span>メッセージ</span>
+        </div>
+        <div id="dm-messages" class="dm-messages"></div>
+        <div class="dm-input-area">
+          <textarea id="dm-input" class="dm-input" placeholder="メッセージを入力… (Enterで送信)" rows="2"></textarea>
+          <button id="dm-send-btn" class="btn-post">送信</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== LISTS ===== -->
+    <section id="tab-lists" class="tab-section hidden">
+      <div class="section-head">
+        <h2 class="section-title">リスト</h2>
+        <button class="refresh-btn" data-target="lists">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        </button>
+      </div>
+      <div id="lists-feed" class="feed"></div>
+      <!-- リストフィード -->
+      <div id="list-feed-container" class="list-feed-container hidden">
+        <div class="section-head">
+          <button id="list-back-btn" class="icon-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <h2 class="section-title">リストフィード</h2>
+        </div>
+        <div id="list-feed" class="feed"></div>
+      </div>
+    </section>
+
+    <!-- ===== PROFILE ===== -->
+    <section id="tab-profile" class="tab-section hidden">
+      <div class="profile-banner" id="prof-banner-img"></div>
+      <div class="profile-header">
+        <img id="prof-avatar-img" class="prof-avatar" src="" alt=""/>
+        <div class="profile-meta">
+          <div id="prof-displayname" class="prof-name">—</div>
+          <div id="prof-handle" class="prof-handle">@—</div>
+          <div id="prof-desc" class="prof-desc"></div>
+          <div class="prof-stats">
+            <span><strong id="prof-following">0</strong> フォロー中</span>
+            <span><strong id="prof-followers">0</strong> フォロワー</span>
+            <span><strong id="prof-posts">0</strong> 投稿</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- プロフィール編集 -->
+      <details class="edit-profile-section">
+        <summary class="edit-profile-toggle">プロフィールを編集</summary>
+        <div class="edit-profile-form">
+          <div class="form-group">
+            <label class="form-label">表示名</label>
+            <input type="text" id="edit-displayname" class="form-input" maxlength="64"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">自己紹介</label>
+            <textarea id="edit-description" class="form-input" rows="3" maxlength="256"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">アバター画像</label>
+            <input type="file" id="edit-avatar-file" class="form-input" accept="image/*"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">バナー画像</label>
+            <input type="file" id="edit-banner-file" class="form-input" accept="image/*"/>
+          </div>
+          <button id="profile-save-btn" class="btn-primary" style="width:auto;padding:10px 24px">
+            <span class="btn-text">保存する</span>
+            <span class="btn-spinner hidden"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="40" stroke-dashoffset="20" class="spin-el"/></svg></span>
           </button>
         </div>
-        <div id="home-feed" class="feed"></div>
-      </section>
+      </details>
 
-      <!-- Notifications -->
-      <section id="tab-notifications" class="tab-section hidden">
-        <div class="section-header">
-          <h2 class="section-title">通知</h2>
-          <button class="refresh-btn" data-target="notifications">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-          </button>
+      <div class="section-head">
+        <h2 class="section-title">投稿一覧</h2>
+        <button class="refresh-btn" data-target="profile">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        </button>
+      </div>
+      <div id="profile-feed" class="feed"></div>
+    </section>
+
+    <!-- ===== SETTINGS ===== -->
+    <section id="tab-settings" class="tab-section hidden">
+      <div class="section-head"><h2 class="section-title">設定</h2></div>
+      <div class="settings-body">
+        <div class="settings-section">
+          <h3 class="settings-section-title">アカウント</h3>
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">接続中のアカウント</div>
+              <div class="settings-row-desc" id="settings-handle">—</div>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Bluesky設定を開く</div>
+              <div class="settings-row-desc">ブロック・ミュート・コンテンツフィルターなど</div>
+            </div>
+            <a href="https://bsky.app/settings" target="_blank" class="btn-sm">開く↗</a>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">アプリパスワードを管理</div>
+              <div class="settings-row-desc">不要になったパスワードを削除できます</div>
+            </div>
+            <a href="https://bsky.app/settings/app-passwords" target="_blank" class="btn-sm">開く↗</a>
+          </div>
         </div>
-        <div id="notifications-feed" class="feed"></div>
-      </section>
 
-      <!-- My posts -->
-      <section id="tab-my-posts" class="tab-section hidden">
-        <div class="section-header">
-          <h2 class="section-title">自分の投稿</h2>
-          <button class="refresh-btn" data-target="my-posts">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-          </button>
+        <div class="settings-section">
+          <h3 class="settings-section-title">SkyDeck について</h3>
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">バージョン</div>
+              <div class="settings-row-desc">SkyDeck v2.0 — AT Protocol client</div>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">ソースコード</div>
+              <div class="settings-row-desc">GitHub Pages でホスティング</div>
+            </div>
+            <a href="https://github.com/Rino-program/skydeck" target="_blank" class="btn-sm">開く↗</a>
+          </div>
         </div>
-        <div id="myposts-feed" class="feed"></div>
-      </section>
 
-      <!-- Following -->
-      <section id="tab-following" class="tab-section hidden">
-        <div class="section-header">
-          <h2 class="section-title">フォロー中のユーザー</h2>
-          <button class="refresh-btn" data-target="following">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-          </button>
+        <div class="settings-section danger-zone">
+          <h3 class="settings-section-title">セッション</h3>
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">ログアウト</div>
+              <div class="settings-row-desc">ローカルのセッション情報を削除します</div>
+            </div>
+            <button id="logout-btn2" class="btn-sm danger" onclick="document.getElementById('logout-btn').click()">ログアウト</button>
+          </div>
         </div>
-        <div id="following-feed" class="feed"></div>
-      </section>
+      </div>
+    </section>
 
-    </div>
   </main>
 </div>
 
-<!-- Toast notifications -->
+<!-- Toast -->
 <div id="toast-container" class="toast-container"></div>
 
-<!-- Delete confirm modal -->
+<!-- Delete Modal -->
 <div id="delete-modal" class="modal-overlay hidden">
   <div class="modal-card">
     <h3 class="modal-title">投稿を削除しますか？</h3>
@@ -222,5 +377,12 @@
 <script src="js/api.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/app.js"></script>
+<script>
+  // 設定ページのハンドル表示
+  document.addEventListener('DOMContentLoaded',()=>{
+    const s=loadSession();
+    if(s) document.getElementById('settings-handle').textContent=`@${s.handle}`;
+  });
+</script>
 </body>
 </html>
