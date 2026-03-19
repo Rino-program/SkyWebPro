@@ -261,8 +261,7 @@ async function apiGetConversations(cursor = null) {
   const res = await fetch(url, { headers: getChatAuth() });
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
-    if (res.status === 401) throw new Error('DMアクセス権限がありません。
-アプリパスワード発行時に「ダイレクトメッセージへのアクセスを許可」にチェックしてください。');
+    if (res.status === 401) throw new Error('DMアクセス権限がありません。\nアプリパスワード発行時に「ダイレクトメッセージへのアクセスを許可」にチェックしてください。');
     throw new Error(e.message || `DM一覧取得失敗 (${res.status})`);
   }
   return res.json();

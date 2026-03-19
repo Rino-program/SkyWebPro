@@ -159,7 +159,6 @@ function renderPostCard(item, myDid, opts = {}) {
 
   return `<div class="post-card ${isThread?'thread-card':''} depth-${Math.min(depth,3)}" data-uri="${uri}" data-cid="${cid}">
   ${isRepost ? `<div class="repost-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>${escapeHtml(repostBy?.displayName||repostBy?.handle||'')} がリポスト</div>` : ''}
-  ${isThread && depth > 0 ? '<div class="thread-line"></div>' : ''}
   <div class="post-card-inner">
     <div class="post-left">
       <img class="post-avatar" src="${avatar}" alt="${name}" onerror="this.src=''" data-handle="${handle}" data-did="${escapeHtml(author.did)}"/>
