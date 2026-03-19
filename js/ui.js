@@ -6,7 +6,27 @@
 //  ユーティリティ
 // =============================================
 function escapeHtml(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g, '&#39;');
+}
+
+function sanitizeHttpUrl(raw) {
+  try {
+    const u = new URL(String(raw ?? ''), window.location.origin);
+    if (u.protocol === 'http:' || u.protocol === 'https:') return u.href;
+  } catch {}
+  return '';
+}
+
+function toSafeProfileId(v) {
+  const s = String(v ?? '');
+  return s.startsWith('did:handle:') ? s.slice('did:handle:'.length) : s;
+}
+
+function buildSafeBannerStyle(url) {
+  const safe = sanitizeHttpUrl(url);
+  return safe
+    ? `background-image:url('${escapeHtml(safe)}');background-size:auto 100%;background-position:center center;background-repeat:no-repeat`
+    : '';
 }
 
 function formatTime(iso) {
@@ -30,12 +50,16 @@ function renderRichText(text, facets = []) {
     if (bs > pos) out += escapeHtml(dec.decode(bytes.slice(pos, bs)));
     const seg = escapeHtml(dec.decode(bytes.slice(bs, be)));
     const ft = f.features[0];
-    if (ft?.$type === 'app.bsky.richtext.facet#link')
-      out += `<a href="${escapeHtml(ft.uri)}" target="_blank" rel="noopener">${seg}</a>`;
+    if (ft?.$type === 'app.bsky.richtext.facet#link') {
+      const safeHref = sanitizeHttpUrl(ft.uri);
+      out += safeHref
+        ? `<a href="${escapeHtml(safeHref)}" target="_blank" rel="noopener noreferrer">${seg}</a>`
+        : seg;
+    }
     else if (ft?.$type === 'app.bsky.richtext.facet#mention')
-      out += `<a href="https://bsky.app/profile/${ft.did}" target="_blank" rel="noopener">${seg}</a>`;
+      out += `<a href="https://bsky.app/profile/${encodeURIComponent(toSafeProfileId(ft.did))}" target="_blank" rel="noopener noreferrer">${seg}</a>`;
     else if (ft?.$type === 'app.bsky.richtext.facet#tag')
-      out += `<a href="https://bsky.app/hashtag/${ft.tag}" target="_blank" rel="noopener">${seg}</a>`;
+      out += `<a href="https://bsky.app/hashtag/${encodeURIComponent(String(ft.tag || ''))}" target="_blank" rel="noopener noreferrer">${seg}</a>`;
     else out += seg;
     pos = be;
   }
@@ -96,7 +120,7 @@ function getEmbedImages(embed) {
 function renderImagesGrid(images) {
   const n = Math.min(images.length, 4);
   return `<div class="post-images count-${n}">${images.slice(0,4).map(img =>
-    `<div class="img-item"><img src="${escapeHtml(img.thumb||img.fullsize||'')}" alt="${escapeHtml(img.alt||'')}" loading="lazy" onerror="this.parentElement.style.display='none'"/></div>`
+    `<div class="img-item"><img src="${escapeHtml(sanitizeHttpUrl(img.thumb||img.fullsize||''))}" alt="${escapeHtml(img.alt||'')}" loading="lazy" onerror="this.parentElement.style.display='none'"/></div>`
   ).join('')}</div>`;
 }
 
@@ -119,7 +143,7 @@ function renderQuoteEmbed(embed) {
 
   return `<div class="quote-embed">
     <div class="quote-header">
-      <img class="quote-avatar" src="${escapeHtml(author.avatar||'')}" alt="" onerror="this.src=''"/>
+      <img class="quote-avatar" src="${escapeHtml(sanitizeHttpUrl(author.avatar||''))}" alt="" onerror="this.src=''"/>
       <span class="quote-name">${escapeHtml(author.displayName||author.handle)}</span>
       <span class="quote-handle">@${escapeHtml(author.handle)}</span>
     </div>
@@ -150,9 +174,11 @@ function renderPostCard(item, myDid, opts = {}) {
 
   const uri     = escapeHtml(post.uri);
   const cid     = escapeHtml(post.cid);
+  const handleRaw = String(author.handle || '');
+  const handleUrl = encodeURIComponent(handleRaw);
   const handle  = escapeHtml(author.handle);
   const name    = escapeHtml(author.displayName || author.handle);
-  const avatar  = escapeHtml(author.avatar || '');
+  const avatar  = escapeHtml(sanitizeHttpUrl(author.avatar || ''));
   const rkey    = post.uri.split('/').pop();
   const depth   = opts.depth || 0;
   const isThread = opts.isThread || false;
@@ -196,7 +222,7 @@ function renderPostCard(item, myDid, opts = {}) {
         ${isMine ? `<button class="act-btn danger delete-btn" data-uri="${uri}" title="削除">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
           削除</button>` : ''}
-        <a class="act-btn" href="https://bsky.app/profile/${handle}/post/${rkey}" target="_blank" rel="noopener" title="Blueskyで開く">
+        <a class="act-btn" href="https://bsky.app/profile/${handleUrl}/post/${encodeURIComponent(String(rkey || ''))}" target="_blank" rel="noopener noreferrer" title="Blueskyで開く">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
         </a>
       </div>
@@ -279,7 +305,7 @@ function renderUserCard(profile, showFollow = false) {
   const isFollowing = !!profile.viewer?.following;
   const followUri   = profile.viewer?.following || '';
   return `<div class="user-card">
-  <img class="user-card-av" src="${escapeHtml(profile.avatar||'')}" alt="" onerror="this.src=''" data-handle="${escapeHtml(profile.handle)}" data-did="${escapeHtml(profile.did)}"/>
+  <img class="user-card-av" src="${escapeHtml(sanitizeHttpUrl(profile.avatar||''))}" alt="" onerror="this.src=''" data-handle="${escapeHtml(profile.handle)}" data-did="${escapeHtml(profile.did)}"/>
   <div class="user-card-info">
     <div class="user-card-name clickable-name" data-handle="${escapeHtml(profile.handle)}" data-did="${escapeHtml(profile.did)}">${escapeHtml(profile.displayName||profile.handle)}</div>
     <div class="user-card-handle">@${escapeHtml(profile.handle)}</div>
@@ -297,9 +323,9 @@ function renderProfilePanel(profile) {
   const followUri   = profile.viewer?.following || '';
   const isMe        = profile.did === loadSession()?.did;
   return `<div class="profile-panel">
-  <div class="profile-banner" style="${profile.banner ? `background-image:url(${escapeHtml(profile.banner)})` : ''}"></div>
+  <div class="profile-banner" style="${buildSafeBannerStyle(profile.banner)}"></div>
   <div class="profile-panel-header">
-    <img class="prof-avatar-lg" src="${escapeHtml(profile.avatar||'')}" alt="" onerror="this.src=''"/>
+    <img class="prof-avatar-lg" src="${escapeHtml(sanitizeHttpUrl(profile.avatar||''))}" alt="" onerror="this.src=''"/>
     <div class="prof-panel-meta">
       <div class="prof-panel-name">${escapeHtml(profile.displayName||profile.handle)}</div>
       <div class="prof-panel-handle">@${escapeHtml(profile.handle)}</div>

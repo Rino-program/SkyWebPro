@@ -11,6 +11,7 @@
 const BSKY_PUB  = 'https://bsky.social/xrpc';
 const SESSION_KEY = 'skydeck_session_v3';
 const DRAFTS_KEY  = 'skydeck_drafts_v2';
+const MAX_IMAGE_BYTES = 1000000;
 
 // =============================================
 //  セッション
@@ -115,15 +116,28 @@ async function apiGetProfile(actor) {
   return res.json();
 }
 
+async function apiGetOwnProfileRecord() {
+  const s = loadSession();
+  const url = `${BSKY_PUB}/com.atproto.repo.getRecord?repo=${encodeURIComponent(s.did)}&collection=app.bsky.actor.profile&rkey=self`;
+  const res = await fetch(url, { headers: getAuth() });
+  if (!res.ok) return null;
+  const data = await res.json().catch(() => ({}));
+  return data.value || null;
+}
+
 async function apiUpdateProfile({ displayName, description, avatarFile, bannerFile }) {
   const s = loadSession();
+  const current = await apiGetOwnProfileRecord();
   const record = {
+    ...(current || {}),
     $type: 'app.bsky.actor.profile',
-    displayName: displayName ?? '',
-    description: description ?? '',
+    displayName: displayName ?? current?.displayName ?? '',
+    description: description ?? current?.description ?? '',
   };
   if (avatarFile) record.avatar = await apiUploadBlob(avatarFile);
+  else if (current?.avatar) record.avatar = current.avatar;
   if (bannerFile) record.banner = await apiUploadBlob(bannerFile);
+  else if (current?.banner) record.banner = current.banner;
   const res = await fetch(`${BSKY_PUB}/com.atproto.repo.putRecord`, {
     method: 'POST',
     headers: { ...getAuth(), 'Content-Type': 'application/json' },
@@ -289,6 +303,10 @@ async function apiSendMessage(convoId, text) {
 //  投稿操作
 // =============================================
 async function apiUploadBlob(file) {
+  if (!file || typeof file.size !== 'number') throw new Error('画像ファイルが不正です');
+  if (file.size > MAX_IMAGE_BYTES) {
+    throw new Error(`画像サイズが大きすぎます（最大 1,000,000 bytes / 現在 ${file.size.toLocaleString()} bytes）`);
+  }
   const buf = await file.arrayBuffer();
   const res = await fetch(`${BSKY_PUB}/com.atproto.repo.uploadBlob`, {
     method: 'POST',

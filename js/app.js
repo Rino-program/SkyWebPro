@@ -5,16 +5,26 @@
 const S = {
   session: null, myProfile: null,
   tab: 'home', homeSubTab: 'following', notifSubTab: 'all', searchTab: 'posts',
-  replyTarget: null, pendingImgs: [], deleteTarget: null,
+  replyTarget: null, pendingImgs: [], quickPendingImgs: [], deleteTarget: null,
   cursors: {}, loading: {},
   activeConvoId: null,
   cachedNotifs: [],
+  statsRange: 'week',
 };
+
+const QUICK_NOTE_KEY = 'skydeck_quick_note_v1';
+const QUICK_NOTE_LIST_KEY = 'skydeck_quick_note_list_v1';
+const THEME_KEY = 'skydeck_theme_v1';
+const APP_MAX_IMAGE_BYTES = 1000000;
+const RIGHT_PANEL_PREFS_KEY = 'skydeck_right_panel_prefs_v1';
+const POST_HISTORY_KEY = 'skydeck_post_history_v1';
+const ADMIN_REPORT_HANDLE = 'rino-program.bsky.social';
 
 // =============================================
 //  初期化
 // =============================================
 async function init() {
+  applySavedTheme();
   const sess = loadSession();
   if (sess) {
     S.session = sess;
@@ -31,10 +41,290 @@ async function init() {
 function showLogin() {
   document.getElementById('login-screen').classList.remove('hidden');
   document.getElementById('app').classList.add('hidden');
+  document.getElementById('quick-post-fab')?.classList.add('hidden');
+  document.getElementById('right-mini-panel')?.classList.add('hidden');
+  document.getElementById('right-panel-mini-btn')?.classList.add('hidden');
+  document.getElementById('quick-post-modal')?.classList.add('hidden');
 }
 function showApp() {
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
+  document.getElementById('quick-post-fab')?.classList.remove('hidden');
+  initRightPanel();
+}
+
+function getRightPanelPrefs() {
+  const base = { notes: true, actions: true, stats: true, visible: true, collapsed: false, mini: false };
+  try {
+    const p = JSON.parse(localStorage.getItem(RIGHT_PANEL_PREFS_KEY) || 'null');
+    if (!p || typeof p !== 'object') return base;
+    return {
+      notes: p.notes !== false,
+      actions: p.actions !== false,
+      stats: p.stats !== false,
+      visible: p.visible !== false,
+      collapsed: p.collapsed === true,
+      mini: p.mini === true,
+    };
+  } catch {
+    return base;
+  }
+}
+
+function saveRightPanelPrefs(next) {
+  localStorage.setItem(RIGHT_PANEL_PREFS_KEY, JSON.stringify(next));
+}
+
+function applyRightPanelPrefs() {
+  const p = getRightPanelPrefs();
+  const panel = document.getElementById('right-mini-panel');
+  const miniLauncher = document.getElementById('right-panel-mini-btn');
+  const toggleBtn = document.getElementById('right-panel-toggle');
+  const cfgNotes = document.getElementById('cfg-show-notes');
+  const cfgActions = document.getElementById('cfg-show-actions');
+  const cfgStats = document.getElementById('cfg-show-stats');
+  const showDeckInput = document.getElementById('settings-show-control-deck');
+  const notes = document.getElementById('right-widget-notes');
+  const actions = document.getElementById('right-widget-actions');
+  const stats = document.getElementById('right-widget-stats');
+  if (panel) {
+    panel.classList.toggle('hidden', !p.visible || !!p.mini);
+    panel.classList.toggle('collapsed', !!p.collapsed);
+  }
+  if (miniLauncher) miniLauncher.classList.toggle('hidden', !p.visible || !p.mini);
+  if (toggleBtn) toggleBtn.textContent = p.collapsed ? '開く' : 'たたむ';
+  if (cfgNotes) cfgNotes.checked = p.notes;
+  if (cfgActions) cfgActions.checked = p.actions;
+  if (cfgStats) cfgStats.checked = p.stats;
+  if (showDeckInput) showDeckInput.checked = p.visible;
+  if (notes) notes.classList.toggle('hidden', !p.notes);
+  if (actions) actions.classList.toggle('hidden', !p.actions);
+  if (stats) stats.classList.toggle('hidden', !p.stats);
+}
+
+function onRightPanelConfigChange() {
+  const curr = getRightPanelPrefs();
+  const next = {
+    notes: !!document.getElementById('cfg-show-notes')?.checked,
+    actions: !!document.getElementById('cfg-show-actions')?.checked,
+    stats: !!document.getElementById('cfg-show-stats')?.checked,
+    visible: curr.visible !== false,
+    collapsed: curr.collapsed === true,
+    mini: curr.mini === true,
+  };
+  saveRightPanelPrefs(next);
+  applyRightPanelPrefs();
+}
+
+function setRightPanelVisible(visible) {
+  const curr = getRightPanelPrefs();
+  saveRightPanelPrefs({ ...curr, visible: !!visible, mini: visible ? curr.mini : false });
+  applyRightPanelPrefs();
+}
+
+function toggleRightPanelCollapsed() {
+  const curr = getRightPanelPrefs();
+  saveRightPanelPrefs({ ...curr, collapsed: !curr.collapsed, visible: true, mini: false });
+  applyRightPanelPrefs();
+}
+
+function setRightPanelMini(mini) {
+  const curr = getRightPanelPrefs();
+  saveRightPanelPrefs({ ...curr, mini: !!mini, visible: true, collapsed: false });
+  applyRightPanelPrefs();
+}
+
+function openRightPanelFromMini() {
+  setRightPanelMini(false);
+  applyRightPanelPrefs();
+}
+
+function onSettingsControlDeckChange() {
+  const visible = !!document.getElementById('settings-show-control-deck')?.checked;
+  setRightPanelVisible(visible);
+}
+
+function initRightPanel() {
+  loadQuickNote();
+  applyRightPanelPrefs();
+  switchInsightRange(S.statsRange);
+  refreshRightStats();
+}
+
+async function reportToAdmin() {
+  const ta = document.getElementById('compose-text');
+  if (!ta) return;
+  switchTab('home');
+  ta.value = `@${ADMIN_REPORT_HANDLE} \n不具合報告: `;
+  updateCharCount();
+  try {
+    const data = await withAuth(() => apiGetAuthorFeed(ADMIN_REPORT_HANDLE, 'posts_no_replies', null));
+    const target = data.feed?.[0]?.post;
+    if (target?.uri && target?.cid) {
+      setReply(target.uri, target.cid, ADMIN_REPORT_HANDLE);
+      showToast('管理者の最新投稿への返信で報告できます', 'success');
+    } else {
+      cancelReply();
+      showToast('返信先を取得できなかったためメンション形式で報告できます', 'info');
+    }
+  } catch {
+    cancelReply();
+    showToast('返信先の取得に失敗したためメンション形式で報告できます', 'info');
+  }
+  document.getElementById('compose-area')?.scrollIntoView({ behavior: 'smooth' });
+  ta.focus();
+}
+
+function insertIntoCompose(textToInsert) {
+  const ta = document.getElementById('compose-text');
+  if (!ta) return;
+  const add = String(textToInsert || '').trim();
+  if (!add) return;
+  const next = ta.value ? `${ta.value}\n${add}` : add;
+  ta.value = next.slice(0, 320);
+  updateCharCount();
+  switchTab('home');
+  document.getElementById('compose-area')?.scrollIntoView({ behavior: 'smooth' });
+  ta.focus();
+}
+
+function quickInsertTime() {
+  const now = new Date();
+  const t = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+  insertIntoCompose(`🕒 ${t}`);
+}
+
+function quickInsertDate() {
+  const now = new Date();
+  const d = now.toLocaleDateString('ja-JP');
+  insertIntoCompose(`📅 ${d}`);
+}
+
+function quickClearCompose() {
+  const ta = document.getElementById('compose-text');
+  if (!ta) return;
+  ta.value = '';
+  updateCharCount();
+}
+
+function switchInsightRange(range) {
+  S.statsRange = range === 'month' ? 'month' : 'week';
+  const weekBtn = document.getElementById('insight-range-week');
+  const monthBtn = document.getElementById('insight-range-month');
+  if (weekBtn) weekBtn.classList.toggle('active', S.statsRange === 'week');
+  if (monthBtn) monthBtn.classList.toggle('active', S.statsRange === 'month');
+  refreshRightStats();
+}
+
+function getPostHistory() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(POST_HISTORY_KEY) || '[]');
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .filter(v => v && typeof v.ts === 'number' && typeof v.len === 'number')
+      .map(v => ({ ts: v.ts, len: Math.max(0, v.len), imgs: Math.max(0, Number(v.imgs || 0)) }))
+      .sort((a, b) => a.ts - b.ts);
+  } catch {
+    return [];
+  }
+}
+
+function savePostHistory(list) {
+  localStorage.setItem(POST_HISTORY_KEY, JSON.stringify(list.slice(-1000)));
+}
+
+function logPostActivity(text, imageCount) {
+  const len = [...String(text || '')].length;
+  const now = Date.now();
+  const cutoff = now - (370 * 24 * 60 * 60 * 1000);
+  const next = getPostHistory().filter(v => v.ts >= cutoff);
+  next.push({ ts: now, len, imgs: Math.max(0, Number(imageCount || 0)) });
+  savePostHistory(next);
+}
+
+function getInsightsFromHistory(range) {
+  const days = range === 'month' ? 30 : 7;
+  const start = Date.now() - (days * 24 * 60 * 60 * 1000);
+  const hist = getPostHistory().filter(v => v.ts >= start);
+  const totalPosts = hist.length;
+  const totalChars = hist.reduce((sum, v) => sum + v.len, 0);
+  const avgChars = totalPosts ? Math.round(totalChars / totalPosts) : 0;
+  const postsPerDay = (totalPosts / days).toFixed(1);
+  const bins = {
+    '深夜 (0-5)': 0,
+    '朝 (6-11)': 0,
+    '昼 (12-17)': 0,
+    '夜 (18-23)': 0,
+  };
+  hist.forEach(v => {
+    const h = new Date(v.ts).getHours();
+    if (h <= 5) bins['深夜 (0-5)'] += 1;
+    else if (h <= 11) bins['朝 (6-11)'] += 1;
+    else if (h <= 17) bins['昼 (12-17)'] += 1;
+    else bins['夜 (18-23)'] += 1;
+  });
+  return { totalPosts, avgChars, postsPerDay, bins };
+}
+
+function renderTimeDistribution() {
+  const host = document.getElementById('stat-time-distribution');
+  if (!host) return;
+  const { totalPosts, bins } = getInsightsFromHistory(S.statsRange);
+  const rows = Object.entries(bins).map(([label, count]) => {
+    const ratio = totalPosts ? Math.round((count / totalPosts) * 100) : 0;
+    return `
+      <div class="time-dist-row">
+        <span class="time-dist-label">${escapeHtml(label)}</span>
+        <div class="time-dist-bar"><i style="width:${ratio}%"></i></div>
+        <strong class="time-dist-value">${ratio}%</strong>
+      </div>`;
+  }).join('');
+  host.innerHTML = rows;
+}
+
+function refreshRightStats() {
+  const homeCards = document.querySelectorAll('#home-feed .post-card').length;
+  const unreadBadge = document.getElementById('notif-badge');
+  const unread = unreadBadge && !unreadBadge.classList.contains('hidden') ? unreadBadge.textContent : '0';
+  const drafts = getDrafts().length;
+  const notes = getQuickNoteList().length;
+  const composeLen = [...(document.getElementById('compose-text')?.value || '')].length;
+  const imgCount = S.pendingImgs.length;
+  const insight = getInsightsFromHistory(S.statsRange);
+  const setText = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = String(val);
+  };
+  setText('stat-post-total', insight.totalPosts);
+  setText('stat-posts-per-day', insight.postsPerDay);
+  setText('stat-avg-length', insight.avgChars);
+  setText('stat-home-count', homeCards);
+  setText('stat-unread-count', unread || 0);
+  setText('stat-draft-count', drafts);
+  setText('stat-note-count', notes);
+  setText('stat-compose-count', composeLen);
+  setText('stat-image-count', imgCount);
+  renderTimeDistribution();
+}
+
+function applyTheme(mode) {
+  const html = document.documentElement;
+  if (!html) return;
+  if (mode === 'dark') html.setAttribute('data-theme', 'dark');
+  else html.removeAttribute('data-theme');
+  localStorage.setItem(THEME_KEY, mode);
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) btn.textContent = mode === 'dark' ? 'ライトへ' : 'ダークへ';
+}
+
+function applySavedTheme() {
+  const saved = localStorage.getItem(THEME_KEY) || 'light';
+  applyTheme(saved === 'dark' ? 'dark' : 'light');
+}
+
+function toggleThemeMode() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  applyTheme(isDark ? 'light' : 'dark');
 }
 
 async function loadMyProfile() {
@@ -54,7 +344,19 @@ async function loadMyProfile() {
     set('prof-followers', p.followersCount || 0);
     set('prof-posts', p.postsCount || 0);
     const banner = document.getElementById('prof-banner-img');
-    if (banner) banner.style.backgroundImage = p.banner ? `url(${p.banner})` : '';
+    if (banner) {
+      if (p.banner) {
+        banner.style.backgroundImage = `url(${p.banner})`;
+        banner.style.backgroundSize = 'auto 100%';
+        banner.style.backgroundRepeat = 'no-repeat';
+        banner.style.backgroundPosition = 'center center';
+      } else {
+        banner.style.backgroundImage = '';
+        banner.style.backgroundSize = '';
+        banner.style.backgroundRepeat = '';
+        banner.style.backgroundPosition = '';
+      }
+    }
     const av = document.getElementById('prof-avatar-img');
     if (av) av.src = p.avatar || '';
     // 編集フォーム
@@ -74,7 +376,11 @@ async function loadMyProfile() {
 function switchTab(tab) {
   S.tab = tab;
   document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  document.querySelectorAll('.tab-section').forEach(s => s.classList.toggle('active', s.id === `tab-${tab}`));
+  document.querySelectorAll('.tab-section').forEach(s => {
+    const isActive = s.id === `tab-${tab}`;
+    s.classList.toggle('active', isActive);
+    s.classList.toggle('hidden', !isActive);
+  });
   if (tab === 'notifications') { document.getElementById('notif-badge').classList.add('hidden'); apiUpdateNotificationSeen(); }
   const feedIds = { home:'home-feed', notifications:'notif-feed', search:'search-feed', dm:'dm-list', lists:'lists-feed', profile:'profile-feed' };
   const feedId = feedIds[tab];
@@ -86,9 +392,11 @@ async function loadTab(tab) {
   try {
     if (tab === 'home')          await loadHome();
     else if (tab === 'notifications') await loadNotifications();
+    else if (tab === 'search')   { /* 検索は手動入力で動作 */ }
     else if (tab === 'profile')  await loadProfile();
     else if (tab === 'lists')    await loadLists();
     else if (tab === 'dm')       await loadDM();
+    else if (tab === 'settings') { /* 設定タブは静的HTML */ }
   } catch(e) { showToast(e.message, 'error'); }
   finally { S.loading[tab] = false; }
 }
@@ -372,7 +680,7 @@ async function execSearch(q) {
 // =============================================
 function updateCharCount() {
   const t = document.getElementById('compose-text').value;
-  const r = 300 - [...t].length;
+  const r = 320 - [...t].length;
   const el = document.getElementById('char-count');
   el.textContent = r;
   el.className = 'char-count' + (r <= 20 ? ' warn' : '') + (r < 0 ? ' danger' : '');
@@ -381,22 +689,97 @@ function updateCharCount() {
 function handleImageSelect(e) {
   const files = Array.from(e.target.files);
   const rem = 4 - S.pendingImgs.length;
-  S.pendingImgs.push(...files.filter(f => f.type.startsWith('image/')).slice(0, rem));
-  if (files.length > rem) showToast(`画像は最大4枚です。${Math.max(0,rem)}枚追加しました。`, 'info');
+  const validImages = files.filter(f => f.type.startsWith('image/'));
+  const sizeOk = validImages.filter(f => f.size <= APP_MAX_IMAGE_BYTES);
+  const rejected = validImages.length - sizeOk.length;
+  S.pendingImgs.push(...sizeOk.slice(0, rem));
+  if (rejected > 0) showToast(`1MBを超える画像を ${rejected} 枚除外しました`, 'info');
+  if (sizeOk.length > rem) showToast(`画像は最大4枚です。${Math.max(0,rem)}枚追加しました。`, 'info');
   renderPreviews();
+  refreshRightStats();
   e.target.value = '';
+}
+
+function handleQuickImageSelect(e) {
+  const files = Array.from(e.target.files);
+  const rem = 4 - S.quickPendingImgs.length;
+  const validImages = files.filter(f => f.type.startsWith('image/'));
+  const sizeOk = validImages.filter(f => f.size <= APP_MAX_IMAGE_BYTES);
+  const rejected = validImages.length - sizeOk.length;
+  S.quickPendingImgs.push(...sizeOk.slice(0, rem));
+  if (rejected > 0) showToast(`1MBを超える画像を ${rejected} 枚除外しました`, 'info');
+  if (sizeOk.length > rem) showToast(`画像は最大4枚です。${Math.max(0,rem)}枚追加しました。`, 'info');
+  renderQuickPreviews();
+  e.target.value = '';
+}
+
+function formatBytes(bytes) {
+  const n = Number(bytes || 0);
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function renderImageAssist(target) {
+  const isQuick = target === 'quick';
+  const imgs = isQuick ? S.quickPendingImgs : S.pendingImgs;
+  const box = document.getElementById(isQuick ? 'quick-image-assist' : 'image-assist');
+  const textEl = document.getElementById(isQuick ? 'quick-image-assist-text' : 'image-assist-text');
+  if (!box || !textEl) return;
+  if (!imgs.length) {
+    box.classList.add('hidden');
+    textEl.textContent = '画像未選択';
+    return;
+  }
+  const total = imgs.reduce((sum, f) => sum + Number(f.size || 0), 0);
+  const max = imgs.reduce((m, f) => Math.max(m, Number(f.size || 0)), 0);
+  const remain = Math.max(0, 4 - imgs.length);
+  box.classList.remove('hidden');
+  textEl.textContent = `枚数 ${imgs.length}/4 ・ 合計 ${formatBytes(total)} ・ 最大 ${formatBytes(max)} ・ 残り ${remain} 枚`;
 }
 
 function renderPreviews() {
   const area = document.getElementById('image-preview-area');
-  if (!S.pendingImgs.length) { area.classList.add('hidden'); area.innerHTML = ''; return; }
+  if (!S.pendingImgs.length) {
+    area.classList.add('hidden');
+    area.innerHTML = '';
+    renderImageAssist('main');
+    return;
+  }
   area.classList.remove('hidden');
   area.innerHTML = S.pendingImgs.map((f, i) => `
     <div class="preview-thumb">
       <img src="${URL.createObjectURL(f)}" alt=""/>
       <button class="preview-rm" data-i="${i}">✕</button>
     </div>`).join('');
-  area.querySelectorAll('.preview-rm').forEach(b => b.addEventListener('click', () => { S.pendingImgs.splice(+b.dataset.i, 1); renderPreviews(); }));
+  area.querySelectorAll('.preview-rm').forEach(b => b.addEventListener('click', () => {
+    S.pendingImgs.splice(+b.dataset.i, 1);
+    renderPreviews();
+    refreshRightStats();
+  }));
+  renderImageAssist('main');
+}
+
+function renderQuickPreviews() {
+  const area = document.getElementById('quick-post-preview');
+  if (!area) return;
+  if (!S.quickPendingImgs.length) {
+    area.classList.add('hidden');
+    area.innerHTML = '';
+    renderImageAssist('quick');
+    return;
+  }
+  area.classList.remove('hidden');
+  area.innerHTML = S.quickPendingImgs.map((f, i) => `
+    <div class="preview-thumb">
+      <img src="${URL.createObjectURL(f)}" alt=""/>
+      <button class="preview-rm" data-qi="${i}">✕</button>
+    </div>`).join('');
+  area.querySelectorAll('.preview-rm').forEach(b => b.addEventListener('click', () => {
+    S.quickPendingImgs.splice(+b.dataset.qi, 1);
+    renderQuickPreviews();
+  }));
+  renderImageAssist('quick');
 }
 
 function setReply(uri, cid, handle) {
@@ -421,16 +804,176 @@ async function handlePost() {
   const btn  = document.getElementById('post-btn');
   const restriction = document.getElementById('reply-restriction').value;
   if (!text && !S.pendingImgs.length) { showToast('テキストまたは画像を入力してください', 'error'); return; }
-  if ([...text].length > 300) { showToast('300文字以内にしてください', 'error'); return; }
+  if ([...text].length > 320) { showToast('320文字以内にしてください', 'error'); return; }
   setLoading(btn, true);
   try {
     await withAuth(() => apiPost(text, S.pendingImgs, S.replyTarget, restriction));
+    logPostActivity(text, S.pendingImgs.length);
     ta.value = ''; S.pendingImgs = []; renderPreviews(); cancelReply(); updateCharCount();
     showToast('投稿しました！', 'success');
     reloadTab('home');
     if (S.tab === 'profile') reloadTab('profile');
+    refreshRightStats();
   } catch(e) { showToast(e.message, 'error'); }
   finally { setLoading(btn, false); }
+}
+
+function updateQuickPostCount() {
+  const t = document.getElementById('quick-post-text')?.value || '';
+  const r = 320 - [...t].length;
+  const el = document.getElementById('quick-post-count');
+  if (!el) return;
+  el.textContent = r;
+  el.className = 'char-count' + (r <= 20 ? ' warn' : '') + (r < 0 ? ' danger' : '');
+}
+
+function openQuickPostModal() {
+  const modal = document.getElementById('quick-post-modal');
+  const ta = document.getElementById('quick-post-text');
+  if (!modal || !ta) return;
+  modal.classList.remove('hidden');
+  ta.focus();
+  renderQuickPreviews();
+  renderImageAssist('quick');
+  updateQuickPostCount();
+}
+
+function closeQuickPostModal() {
+  const ta = document.getElementById('quick-post-text');
+  if (ta) ta.value = '';
+  S.quickPendingImgs = [];
+  renderQuickPreviews();
+  renderImageAssist('quick');
+  updateQuickPostCount();
+  document.getElementById('quick-post-modal')?.classList.add('hidden');
+}
+
+async function handleQuickPost() {
+  const ta = document.getElementById('quick-post-text');
+  const btn = document.getElementById('quick-post-submit');
+  const text = ta?.value.trim() || '';
+  const restriction = document.getElementById('quick-post-restriction')?.value || 'everybody';
+  if (!text && !S.quickPendingImgs.length) { showToast('テキストまたは画像を入力してください', 'error'); return; }
+  if ([...text].length > 320) { showToast('320文字以内にしてください', 'error'); return; }
+  setLoading(btn, true);
+  try {
+    await withAuth(() => apiPost(text, S.quickPendingImgs, null, restriction));
+    logPostActivity(text, S.quickPendingImgs.length);
+    closeQuickPostModal();
+    showToast('投稿しました！', 'success');
+    await reloadTab('home');
+    refreshRightStats();
+  } catch (e) {
+    showToast(e.message, 'error');
+  } finally {
+    setLoading(btn, false);
+  }
+}
+
+function handleExternalLinkGuard(e) {
+  const link = e.target.closest('a[href]');
+  if (!link) return;
+  try {
+    const url = new URL(link.href, window.location.href);
+    if (!/^https?:$/i.test(url.protocol)) return;
+    if (url.origin === window.location.origin) return;
+    if (link.dataset.skipConfirm === '1') return;
+    const ok = window.confirm(`外部サイトへ移動します。\n${url.hostname}\n続行しますか？`);
+    if (!ok) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  } catch {
+    // Ignore malformed URLs.
+  }
+}
+
+function loadQuickNote() {
+  const inp = document.getElementById('quick-note-input');
+  const status = document.getElementById('quick-note-status');
+  if (!inp || !status) return;
+  const saved = localStorage.getItem(QUICK_NOTE_KEY) || '';
+  inp.value = saved;
+  status.textContent = saved ? '保存済みメモを読み込みました' : '未保存';
+  renderQuickNoteList();
+  refreshRightStats();
+}
+
+function saveQuickNote() {
+  const inp = document.getElementById('quick-note-input');
+  const status = document.getElementById('quick-note-status');
+  if (!inp || !status) return;
+  const text = (inp.value || '').trim();
+  localStorage.setItem(QUICK_NOTE_KEY, text);
+  if (text) {
+    const curr = getQuickNoteList();
+    const next = [text, ...curr.filter(v => v !== text)].slice(0, 8);
+    localStorage.setItem(QUICK_NOTE_LIST_KEY, JSON.stringify(next));
+  }
+  renderQuickNoteList();
+  status.textContent = '保存しました';
+  refreshRightStats();
+}
+
+function getQuickNoteList() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(QUICK_NOTE_LIST_KEY) || '[]');
+    if (!Array.isArray(raw)) return [];
+    return raw.filter(v => typeof v === 'string' && v.trim()).slice(0, 8);
+  } catch {
+    return [];
+  }
+}
+
+function renderQuickNoteList() {
+  const listEl = document.getElementById('quick-note-list');
+  if (!listEl) return;
+  const list = getQuickNoteList();
+  if (!list.length) {
+    listEl.innerHTML = '';
+    return;
+  }
+  listEl.innerHTML = list.map((text, idx) => `
+    <div class="quick-note-item" data-note-index="${idx}">
+      <div class="quick-note-text">${escapeHtml(text)}</div>
+      <button class="btn-sm quick-note-use" data-note-action="use" data-note-index="${idx}">使う</button>
+      <button class="btn-sm quick-note-delete" data-note-action="delete" data-note-index="${idx}">削除</button>
+    </div>
+  `).join('');
+}
+
+function useQuickNoteByIndex(index) {
+  const list = getQuickNoteList();
+  const text = list[index] || '';
+  if (!text) return;
+  const inp = document.getElementById('quick-note-input');
+  if (inp) inp.value = text;
+  insertQuickNoteToCompose();
+}
+
+function deleteQuickNoteByIndex(index) {
+  const list = getQuickNoteList();
+  if (index < 0 || index >= list.length) return;
+  list.splice(index, 1);
+  localStorage.setItem(QUICK_NOTE_LIST_KEY, JSON.stringify(list));
+  renderQuickNoteList();
+  refreshRightStats();
+}
+
+function insertQuickNoteToCompose() {
+  const inp = document.getElementById('quick-note-input');
+  const ta = document.getElementById('compose-text');
+  if (!inp || !ta) return;
+  const note = (inp.value || '').trim();
+  if (!note) { showToast('メモが空です', 'info'); return; }
+  const next = ta.value ? `${ta.value}\n${note}` : note;
+  ta.value = next.slice(0, 320);
+  updateCharCount();
+  switchTab('home');
+  document.getElementById('compose-area')?.scrollIntoView({ behavior: 'smooth' });
+  ta.focus();
+  showToast('メモを本文へ貼り付けました', 'success');
+  refreshRightStats();
 }
 
 // 引用リポスト投稿
@@ -670,12 +1213,41 @@ function bindAll() {
 
   // compose
   document.getElementById('compose-text').addEventListener('input', updateCharCount);
+  document.getElementById('compose-text').addEventListener('input', refreshRightStats);
   document.getElementById('compose-text').addEventListener('keydown', e => { if ((e.metaKey||e.ctrlKey) && e.key === 'Enter') handlePost(); });
   document.getElementById('image-input').addEventListener('change', handleImageSelect);
+  document.getElementById('quick-post-image-input')?.addEventListener('change', handleQuickImageSelect);
   document.getElementById('post-btn').addEventListener('click', handlePost);
   document.getElementById('cancel-reply-btn').addEventListener('click', cancelReply);
   document.getElementById('save-draft-btn').addEventListener('click', saveDraftAndClear);
   document.getElementById('drafts-btn').addEventListener('click', toggleDrafts);
+
+  // 左下クイック投稿
+  document.getElementById('quick-post-fab')?.addEventListener('click', openQuickPostModal);
+  document.getElementById('quick-post-cancel')?.addEventListener('click', closeQuickPostModal);
+  document.getElementById('quick-post-submit')?.addEventListener('click', handleQuickPost);
+  document.getElementById('quick-post-text')?.addEventListener('input', updateQuickPostCount);
+  document.getElementById('quick-post-text')?.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleQuickPost(); });
+  document.getElementById('quick-post-modal')?.addEventListener('click', e => { if (e.target === e.currentTarget) closeQuickPostModal(); });
+
+  // 右側独自機能: クイックメモ
+  document.getElementById('quick-note-save')?.addEventListener('click', saveQuickNote);
+  document.getElementById('quick-note-insert')?.addEventListener('click', insertQuickNoteToCompose);
+  document.getElementById('cfg-show-notes')?.addEventListener('change', onRightPanelConfigChange);
+  document.getElementById('cfg-show-actions')?.addEventListener('change', onRightPanelConfigChange);
+  document.getElementById('cfg-show-stats')?.addEventListener('change', onRightPanelConfigChange);
+  document.getElementById('right-panel-toggle')?.addEventListener('click', toggleRightPanelCollapsed);
+  document.getElementById('right-panel-mini')?.addEventListener('click', () => setRightPanelMini(true));
+  document.getElementById('right-panel-mini-btn')?.addEventListener('click', openRightPanelFromMini);
+  document.getElementById('right-panel-hide')?.addEventListener('click', () => setRightPanelVisible(false));
+  document.getElementById('insight-range-week')?.addEventListener('click', () => switchInsightRange('week'));
+  document.getElementById('insight-range-month')?.addEventListener('click', () => switchInsightRange('month'));
+  document.getElementById('action-insert-time')?.addEventListener('click', quickInsertTime);
+  document.getElementById('action-insert-date')?.addEventListener('click', quickInsertDate);
+  document.getElementById('action-clear-compose')?.addEventListener('click', quickClearCompose);
+  document.getElementById('action-go-home')?.addEventListener('click', () => switchTab('home'));
+  document.getElementById('action-open-search')?.addEventListener('click', () => switchTab('search'));
+  document.getElementById('right-stats-refresh')?.addEventListener('click', refreshRightStats);
 
   // 削除モーダル
   document.getElementById('delete-cancel-btn').addEventListener('click', () => { document.getElementById('delete-modal').classList.add('hidden'); S.deleteTarget = null; });
@@ -688,6 +1260,12 @@ function bindAll() {
 
   // リストバック
   document.getElementById('list-back-btn').addEventListener('click', () => document.getElementById('list-feed-container').classList.add('hidden'));
+
+  // 設定画面のログアウト
+  document.getElementById('settings-logout-btn')?.addEventListener('click', handleLogout);
+  document.getElementById('theme-toggle-btn')?.addEventListener('click', toggleThemeMode);
+  document.getElementById('settings-show-control-deck')?.addEventListener('change', onSettingsControlDeckChange);
+  document.getElementById('settings-report-admin-btn')?.addEventListener('click', reportToAdmin);
 
   // プロフィール編集
   document.getElementById('profile-save-btn').addEventListener('click', handleProfileSave);
@@ -706,6 +1284,7 @@ function bindAll() {
 
   // 委任クリック（フィード内全て）
   document.addEventListener('click', handleDelegatedClick);
+  document.addEventListener('click', handleExternalLinkGuard, true);
 }
 
 async function handleLogin() {
@@ -813,6 +1392,14 @@ function handleDelegatedClick(e) {
       deleteDraft(+draftBtn.dataset.draftId);
       renderDraftsPanel();
     }
+    return;
+  }
+  // クイックメモ履歴
+  const noteBtn = e.target.closest('[data-note-action]');
+  if (noteBtn) {
+    const idx = Number(noteBtn.dataset.noteIndex || '-1');
+    if (noteBtn.dataset.noteAction === 'use') useQuickNoteByIndex(idx);
+    if (noteBtn.dataset.noteAction === 'delete') deleteQuickNoteByIndex(idx);
     return;
   }
   // 名前・アバタークリック → 他人プロフィール
