@@ -14,10 +14,33 @@ const DRAFTS_KEY  = 'skydeck_drafts_v1';
 const STORAGE_VERSION_KEY = 'skydeck_storage_version';
 const CURRENT_STORAGE_VERSION = 'v1';
 const RELOGIN_REASON_KEY = 'skydeck_relogin_reason';
+const SESSION_SAVED_AT_KEY = 'skydeck_session_saved_at';
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const LEGACY_SESSION_KEYS = ['skydeck_session_v3'];
 const LEGACY_DRAFT_KEYS = ['skydeck_drafts_v2'];
 const MAX_IMAGE_BYTES = 1000000;
+const IMAGE_UPLOAD_RETRY_ATTEMPTS = 2;
 const API_MEMORY_STORAGE = new Map();
+
+class AppError extends Error {
+  constructor(code, message, detail = null) {
+    super(message || code || 'APP_ERROR');
+    this.name = 'AppError';
+    this.code = String(code || 'APP_ERROR');
+    this.detail = detail;
+  }
+}
+
+function isTransientStatus(status) {
+  return status === 429 || status === 503 || status === 504;
+}
+
+function jitterDelay(baseMs, attempt) {
+  const exp = Math.max(1, 2 ** Math.max(0, attempt - 1));
+  const max = Math.min(4000, baseMs * exp);
+  const jitter = Math.floor(Math.random() * Math.max(80, max * 0.3));
+  return max + jitter;
+}
 
 function safeStorageGetItem(key) {
   try { return localStorage.getItem(key); }
@@ -66,7 +89,10 @@ function hasLegacySession() {
 // =============================================
 //  セッション
 // =============================================
-function saveSession(s)  { safeStorageSetItem(SESSION_KEY, JSON.stringify(s)); }
+function saveSession(s)  {
+  safeStorageSetItem(SESSION_KEY, JSON.stringify(s));
+  safeStorageSetItem(SESSION_SAVED_AT_KEY, String(Date.now()));
+}
 function loadSession() {
   const ver = getStorageVersion();
   const hasV1Session = !!safeStorageGetItem(SESSION_KEY);
@@ -84,12 +110,21 @@ function loadSession() {
 
   try {
     const v1 = JSON.parse(safeStorageGetItem(SESSION_KEY) || 'null');
-    if (v1) return v1;
+    if (v1) {
+      const savedAt = Number(safeStorageGetItem(SESSION_SAVED_AT_KEY) || 0);
+      if (savedAt > 0 && (Date.now() - savedAt) > SESSION_TTL_MS) {
+        clearSession();
+        setReloginReason('session_expired_policy');
+        return null;
+      }
+      return v1;
+    }
   } catch {}
   return null;
 }
 function clearSession()  {
   safeStorageRemoveItem(SESSION_KEY);
+  safeStorageRemoveItem(SESSION_SAVED_AT_KEY);
   LEGACY_SESSION_KEYS.forEach(safeStorageRemoveItem);
 }
 
@@ -156,7 +191,7 @@ async function apiRefreshSession(refreshJwt) {
     method: 'POST',
     headers: { Authorization: `Bearer ${refreshJwt}` },
   });
-  if (!res.ok) throw new Error('session_expired');
+  if (!res.ok) throw new AppError('SESSION_EXPIRED', 'session_expired');
   return res.json();
 }
 
@@ -170,7 +205,11 @@ async function withAuth(fn) {
           const ns = await apiRefreshSession(s.refreshJwt);
           saveSession({ ...s, accessJwt: ns.accessJwt, refreshJwt: ns.refreshJwt });
           return await fn();
-        } catch { clearSession(); throw new Error('セッション期限切れです。再ログインしてください。'); }
+        } catch {
+          clearSession();
+          setReloginReason('session_expired');
+          throw new AppError('SESSION_EXPIRED', 'セッション期限切れです。再ログインしてください。');
+        }
       }
     }
     throw e;
@@ -201,11 +240,20 @@ async function apiGetOwnProfileRecord() {
 async function apiUpdateProfile({ displayName, description, avatarFile, bannerFile }) {
   const s = loadSession();
   const current = await apiGetOwnProfileRecord();
+  const nextDisplayName = displayName ?? current?.displayName ?? '';
+  const nextDescription = description ?? current?.description ?? '';
+  const sameDisplayName = String(current?.displayName || '') === String(nextDisplayName || '');
+  const sameDescription = String(current?.description || '') === String(nextDescription || '');
+  const needsAvatar = !!avatarFile;
+  const needsBanner = !!bannerFile;
+  if (sameDisplayName && sameDescription && !needsAvatar && !needsBanner) {
+    return { skipped: true };
+  }
   const record = {
     ...(current || {}),
     $type: 'app.bsky.actor.profile',
-    displayName: displayName ?? current?.displayName ?? '',
-    description: description ?? current?.description ?? '',
+    displayName: nextDisplayName,
+    description: nextDescription,
   };
   if (avatarFile) record.avatar = await apiUploadBlob(avatarFile);
   else if (current?.avatar) record.avatar = current.avatar;
@@ -226,7 +274,7 @@ async function apiUpdateProfile({ displayName, description, avatarFile, bannerFi
 async function apiGetTimeline(cursor = null) {
   let url = `${BSKY_PUB}/app.bsky.feed.getTimeline?limit=30`;
   if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
-  const res = await fetch(url, { headers: getAuth() });
+  const res = await withRetry(() => fetch(url, { headers: getAuth() }), { attempts: 3, baseMs: 220 });
   if (!res.ok) throw new Error('タイムライン取得失敗');
   return res.json();
 }
@@ -266,7 +314,7 @@ async function apiGetActorLikes(actor, cursor = null) {
 async function apiGetNotifications(cursor = null) {
   let url = `${BSKY_PUB}/app.bsky.notification.listNotifications?limit=30`;
   if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
-  const res = await fetch(url, { headers: getAuth() });
+  const res = await withRetry(() => fetch(url, { headers: getAuth() }), { attempts: 3, baseMs: 300 });
   if (!res.ok) throw new Error(`通知取得失敗 (${res.status})`);
   return res.json();
 }
@@ -285,26 +333,34 @@ async function apiUpdateNotificationSeen() {
   }).catch(() => {});
 }
 
-async function apiSearchPosts(query, cursor = null, sort = 'top') {
+async function apiSearchPosts(query, cursor = null, sort = 'top', signal = undefined) {
   let url = `${BSKY_PUB}/app.bsky.feed.searchPosts?q=${encodeURIComponent(query)}&limit=25`;
   if (sort === 'latest') url += `&sort=latest`;
   if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
-  const res = await fetch(url, { headers: getAuth() });
+  const res = await withRetry(() => fetch(url, { headers: getAuth(), signal }), {
+    attempts: 2,
+    baseMs: 180,
+    shouldRetry: err => err?.name !== 'AbortError',
+  });
   if (!res.ok) throw new Error(`投稿検索失敗 (${res.status})`);
   return res.json();
 }
 
-async function apiGetTrendingTopics(limit = 20) {
+async function apiGetTrendingTopics(limit = 20, signal = undefined) {
   const url = `${BSKY_PUB}/app.bsky.unspecced.getTrendingTopics?limit=${Math.max(5, Math.min(50, Number(limit || 20)))}`;
-  const res = await fetch(url, { headers: getAuth() });
+  const res = await fetch(url, { headers: getAuth(), signal });
   if (!res.ok) throw new Error(`トレンド取得失敗 (${res.status})`);
   return res.json();
 }
 
-async function apiSearchActors(query, cursor = null) {
+async function apiSearchActors(query, cursor = null, signal = undefined) {
   let url = `${BSKY_PUB}/app.bsky.actor.searchActors?q=${encodeURIComponent(query)}&limit=25`;
   if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
-  const res = await fetch(url, { headers: getAuth() });
+  const res = await withRetry(() => fetch(url, { headers: getAuth(), signal }), {
+    attempts: 2,
+    baseMs: 180,
+    shouldRetry: err => err?.name !== 'AbortError',
+  });
   if (!res.ok) throw new Error(`ユーザー検索失敗 (${res.status})`);
   return res.json();
 }
@@ -349,7 +405,8 @@ async function apiGetListFeed(listUri, cursor = null) {
 //  スレッド（投稿の返信階層）
 // =============================================
 async function apiGetPostThread(uri, depth = 6) {
-  const url = `${BSKY_PUB}/app.bsky.feed.getPostThread?uri=${encodeURIComponent(uri)}&depth=${depth}&parentHeight=5`;
+  const d = Math.max(1, Math.min(15, Number(depth) || 6));
+  const url = `${BSKY_PUB}/app.bsky.feed.getPostThread?uri=${encodeURIComponent(uri)}&depth=${d}&parentHeight=5`;
   const res = await fetch(url, { headers: getAuth() });
   if (!res.ok) throw new Error(`スレッド取得失敗 (${res.status})`);
   return res.json();
@@ -362,7 +419,7 @@ async function apiGetPostThread(uri, depth = 6) {
 async function apiGetConversations(cursor = null) {
   let url = `${BSKY_CHAT}/chat.bsky.convo.listConvos?limit=20`;
   if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
-  const res = await fetch(url, { headers: getChatAuth() });
+  const res = await withRetry(() => fetch(url, { headers: getChatAuth() }), { attempts: 3, baseMs: 280 });
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
     if (res.status === 401) throw new Error('DMアクセス権限がありません。\nアプリパスワード発行時に「ダイレクトメッセージへのアクセスを許可」にチェックしてください。');
@@ -420,6 +477,47 @@ async function apiUploadBlob(file) {
   return (await res.json()).blob;
 }
 
+function waitMs(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function withRetry(fn, options = {}) {
+  const attempts = Math.max(1, Number(options.attempts || 1));
+  const baseMs = Math.max(80, Number(options.baseMs || 250));
+  const shouldRetry = typeof options.shouldRetry === 'function'
+    ? options.shouldRetry
+    : (err => {
+      const msg = String(err?.message || '').toLowerCase();
+      if (err?.status && isTransientStatus(err.status)) return true;
+      return /network|fetch failed|timed out|timeout|503|504|429/.test(msg);
+    });
+  let lastError = null;
+  for (let i = 1; i <= attempts; i += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (i >= attempts || !shouldRetry(err)) break;
+      await waitMs(jitterDelay(baseMs, i));
+    }
+  }
+  throw lastError || new AppError('RETRY_FAILED', '通信に失敗しました');
+}
+
+async function apiUploadBlobWithRetry(file, maxAttempts = IMAGE_UPLOAD_RETRY_ATTEMPTS) {
+  let lastError = null;
+  const attempts = Math.max(1, Number(maxAttempts || 1));
+  for (let i = 1; i <= attempts; i += 1) {
+    try {
+      return await apiUploadBlob(file);
+    } catch (e) {
+      lastError = e;
+      if (i < attempts) await waitMs(250 * i);
+    }
+  }
+  throw lastError || new Error('画像アップロード失敗');
+}
+
 function detectFacets(text) {
   const enc = new TextEncoder();
   const facets = [];
@@ -446,7 +544,22 @@ async function apiPost(text, images = [], replyTo = null, replyRestriction = nul
   // 画像 or 引用リポスト embed
   if (images.length) {
     const imgs = [];
-    for (const f of images.slice(0, 4)) imgs.push({ alt: '', image: await apiUploadBlob(f) });
+    const failedUploads = [];
+    for (let i = 0; i < images.slice(0, 4).length; i += 1) {
+      const f = images[i];
+      try {
+        const blob = await apiUploadBlobWithRetry(f, IMAGE_UPLOAD_RETRY_ATTEMPTS);
+        imgs.push({ alt: '', image: blob });
+      } catch (e) {
+        failedUploads.push({ index: i, name: String(f?.name || `image-${i + 1}`), reason: e?.message || 'upload_failed' });
+      }
+    }
+    if (failedUploads.length) {
+      const err = new Error(`画像アップロード失敗: ${failedUploads.length}枚（再試行できます）`);
+      err.code = 'IMAGE_UPLOAD_PARTIAL_FAILURE';
+      err.failedUploads = failedUploads;
+      throw err;
+    }
     record.embed = { $type: 'app.bsky.embed.images', images: imgs };
   } else if (quoteUri && quoteCid) {
     record.embed = {

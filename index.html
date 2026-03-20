@@ -146,6 +146,7 @@
             <div id="compose-template-list" class="compose-template-list"></div>
             <button id="compose-template-refresh" class="btn-sm" type="button">提案更新</button>
           </div>
+          <div id="compose-hashtag-suggestions" class="search-recent-list" style="margin-bottom:8px"></div>
           <div id="image-preview-area" class="preview-area hidden"></div>
           <div id="image-assist" class="image-assist hidden">
             <div class="image-assist-head">画像投稿アシスト</div>
@@ -169,6 +170,13 @@
                 <option value="followers">フォロワーのみ</option>
                 <option value="mentionedUsers">メンションしたユーザーのみ</option>
                 <option value="nobody">返信不可</option>
+              </select>
+              <select id="reply-template-select" class="restriction-select" title="公開範囲テンプレート">
+                <option value="everybody">テンプレ: 全員公開</option>
+                <option value="following">テンプレ: フォロー中のみ</option>
+                <option value="followers">テンプレ: フォロワーのみ</option>
+                <option value="mentionedUsers">テンプレ: メンションのみ</option>
+                <option value="nobody">テンプレ: 返信不可</option>
               </select>
             </div>
             <div class="compose-right">
@@ -199,6 +207,10 @@
         <button class="refresh-btn" data-target="home"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
       </div>
       <div id="home-feed" class="feed"></div>
+      <div class="settings-section" style="margin:10px 14px 18px 14px">
+        <h3 class="settings-section-title" style="margin-bottom:8px">話題急上昇</h3>
+        <div id="home-trend-sidecard" class="search-recent-list"></div>
+      </div>
     </section>
 
     <!-- ===== NOTIFICATIONS ===== -->
@@ -208,6 +220,7 @@
           <button class="sub-tab active" data-sub="all">すべて</button>
           <button class="sub-tab" data-sub="unread">未読</button>
           <button class="sub-tab" data-sub="mention">メンション</button>
+          <button class="sub-tab" data-sub="nonfollowers">フォロー外</button>
         </div>
         <button class="refresh-btn" data-target="notifications"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
       </div>
@@ -257,6 +270,9 @@
       <div class="dm-tip">
         💡 DMを使用するには、アプリパスワード発行時に<strong>「ダイレクトメッセージへのアクセスを許可」</strong>にチェックが必要です。
       </div>
+      <div style="padding:8px 16px;background:var(--surface);border-bottom:1px solid var(--border-l)">
+        <input type="text" id="dm-search-input" class="search-box" placeholder="DMを検索（名前・ID・本文）" style="width:100%;border:1.5px solid var(--border);border-radius:999px;padding:8px 12px;background:var(--surface2)"/>
+      </div>
       <div id="dm-list" class="feed"></div>
       <div id="dm-chat-panel" class="dm-chat-panel hidden">
         <div class="dm-chat-header">
@@ -266,6 +282,7 @@
         <div id="dm-messages" class="dm-messages"></div>
         <div class="dm-input-area">
           <textarea id="dm-input" class="dm-input" placeholder="メッセージを入力… (Enterで送信)" rows="2"></textarea>
+          <button id="dm-image-btn" class="btn-sm" type="button">画像</button>
           <button id="dm-send-btn" class="btn-post">送信</button>
         </div>
       </div>
@@ -326,6 +343,10 @@
         <button class="refresh-btn" data-target="profile"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
       </div>
       <div id="profile-feed" class="feed"></div>
+      <div class="settings-section" style="margin:10px 14px 18px 14px">
+        <h3 class="settings-section-title" style="margin-bottom:8px">最近の検索</h3>
+        <div id="profile-recent-searches" class="search-recent-list"></div>
+      </div>
     </section>
 
     <!-- ===== SETTINGS ===== -->
@@ -342,15 +363,27 @@
           <h3 class="settings-section-title">SkyDeck について</h3>
           <div class="settings-row"><div><div class="settings-row-label">バージョン</div><div class="settings-row-desc">SkyDeck v1.0 — AT Protocol client</div></div></div>
           <div class="settings-row"><div><div class="settings-row-label">ソースコード</div><div class="settings-row-desc">GitHub Pages でホスティング</div></div><a href="https://github.com/Rino-program/skydeck" target="_blank" rel="noopener noreferrer" class="btn-sm">開く↗</a></div>
+          <div class="settings-row"><div><div class="settings-row-label">依存先ドメイン</div><div class="settings-row-desc">bsky.social (公開API), api.bsky.chat (DM), fonts.googleapis.com/fonts.gstatic.com (Webフォント), googletagmanager.com/google-analytics.com (分析)</div></div></div>
           <div class="settings-row"><div><div class="settings-row-desc" style="font-size:.68rem;opacity:.55">@Rino-program · @Claude · @GitHubCopilot</div></div></div>
         </div>
         <div class="settings-section">
           <h3 class="settings-section-title">表示</h3>
           <div class="settings-row"><div><div class="settings-row-label">ダークモード</div><div class="settings-row-desc">見た目を切り替えます</div></div><button id="theme-toggle-btn" class="btn-sm">切り替え</button></div>
+          <div class="settings-row"><div><div class="settings-row-label">テーマプリセット</div><div class="settings-row-desc">配色テーマを選択します</div></div><select id="settings-theme-mode" class="restriction-select" title="テーマ"><option value="light">ライト</option><option value="dark">ダーク</option><option value="ocean">オーシャン</option><option value="forest">フォレスト</option></select></div>
+          <div class="settings-row"><div><div class="settings-row-label">文字サイズ</div><div class="settings-row-desc">表示文字の大きさを3段階で変更します</div></div><select id="settings-font-scale" class="restriction-select" title="文字サイズ"><option value="small">小</option><option value="normal">標準</option><option value="large">大</option></select></div>
+          <div class="settings-row"><div><div class="settings-row-label">1行あたり文字数目安</div><div class="settings-row-desc">投稿本文の読みやすさを調整します</div></div><select id="settings-reading-width" class="restriction-select" title="文字数目安"><option value="56">狭め (56ch)</option><option value="64">標準 (64ch)</option><option value="72">広め (72ch)</option></select></div>
           <div class="settings-row"><div><div class="settings-row-label">Control Deck</div><div class="settings-row-desc">右下パネルの表示/非表示</div></div><label class="right-toggle"><input id="settings-show-control-deck" type="checkbox" checked/> 表示する</label></div>
           <div class="settings-row"><div><div class="settings-row-label">投稿表示幅を手動調整</div><div class="settings-row-desc">ONで右端ハンドルとスライダーから幅変更できます</div></div><label class="right-toggle"><input id="settings-enable-feed-width" type="checkbox"/> 有効</label></div>
           <div class="settings-row"><div><div class="settings-row-label">投稿表示幅</div><div class="settings-row-desc"><span id="settings-feed-width-value">680px</span></div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px"><input id="settings-feed-width" type="range" min="560" max="1100" step="10" value="680" style="width:180px" disabled/><button id="settings-feed-width-apply" class="btn-sm" disabled>適用</button></div></div>
           <div class="settings-row"><div><div class="settings-row-label">ショートカット一覧</div><div class="settings-row-desc">キーボード操作の一覧を表示</div></div><button id="settings-shortcuts-btn" class="btn-sm">表示</button></div>
+          <div class="settings-row"><div><div class="settings-row-label">ショートカット操作</div><div class="settings-row-desc">キーボードショートカットの有効/無効</div></div><label class="right-toggle"><input id="settings-shortcuts-enabled" type="checkbox" checked/> 有効</label></div>
+          <div class="settings-row"><div><div class="settings-row-label">ショートカットキー</div><div class="settings-row-desc">1文字キーをカスタマイズできます（重複不可）</div></div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><label class="settings-row-desc">ヘルプ <input id="settings-shortcut-help" class="shortcut-key-input" type="text" maxlength="1"/></label><label class="settings-row-desc">検索 <input id="settings-shortcut-search" class="shortcut-key-input" type="text" maxlength="1"/></label><label class="settings-row-desc">投稿 <input id="settings-shortcut-compose" class="shortcut-key-input" type="text" maxlength="1"/></label><label class="settings-row-desc">移動プレフィックス <input id="settings-shortcut-nav" class="shortcut-key-input" type="text" maxlength="1"/></label><button id="settings-shortcut-reset" class="btn-sm" type="button">既定に戻す</button></div></div>
+          <div class="settings-row"><div><div class="settings-row-label">通知更新間隔</div><div class="settings-row-desc">通知の自動確認間隔を設定します</div></div><select id="settings-notif-interval" class="restriction-select" title="通知更新間隔"><option value="15000">15秒</option><option value="30000">30秒</option><option value="60000">1分</option><option value="120000">2分</option><option value="300000">5分</option></select></div>
+          <div class="settings-row"><div><div class="settings-row-label">トースト表示時間</div><div class="settings-row-desc">通知メッセージの表示時間を変更します</div></div><select id="settings-toast-duration" class="restriction-select" title="トースト表示時間"><option value="2000">2秒</option><option value="3500">3.5秒</option><option value="5000">5秒</option><option value="8000">8秒</option></select></div>
+          <div class="settings-row"><div><div class="settings-row-label">起動時タブ</div><div class="settings-row-desc">自動最適化または前回タブ固定を選択</div></div><select id="settings-startup-tab-mode" class="restriction-select" title="起動時タブ"><option value="auto">自動最適化</option><option value="manual">前回タブを開く</option></select></div>
+          <div class="settings-row"><div><div class="settings-row-label">自動ログアウト（無操作）</div><div class="settings-row-desc">一定時間操作がない場合にログアウトします</div></div><select id="settings-inactivity-timeout" class="restriction-select" title="自動ログアウト"><option value="0">オフ</option><option value="15">15分</option><option value="30">30分</option><option value="60">60分</option></select></div>
+          <div class="settings-row"><div><div class="settings-row-label">投稿カード密度</div><div class="settings-row-desc">1画面の情報量を調整します</div></div><select id="settings-post-density" class="restriction-select" title="投稿カード密度"><option value="normal">標準</option><option value="compact">コンパクト</option></select></div>
+          <div class="settings-row"><div><div class="settings-row-label">画像自動読み込み</div><div class="settings-row-desc">通信量を抑えるため読み込み条件を変更</div></div><select id="settings-image-autoload" class="restriction-select" title="画像自動読み込み"><option value="always">常に読み込む</option><option value="wifi">Wi-Fi時のみ自動</option></select></div>
         </div>
         <div class="settings-section">
           <h3 class="settings-section-title">日本最適化と個人最適化</h3>
@@ -363,6 +396,11 @@
           <div class="settings-row"><div><div class="settings-row-label">管理者へ報告</div><div class="settings-row-desc">@rino-program.bsky.social への返信で報告文を作成<br/>機能依頼やバグ報告などができます。</div></div><button id="settings-report-admin-btn" class="btn-sm">報告する</button></div>
         </div>
         <div class="settings-section">
+          <h3 class="settings-section-title">データ</h3>
+          <div class="settings-row"><div><div class="settings-row-label">設定のエクスポート</div><div class="settings-row-desc">表示・通知・個人最適化設定をJSON保存</div></div><button id="settings-export-prefs-btn" class="btn-sm">書き出す</button></div>
+          <div class="settings-row"><div><div class="settings-row-label">設定のインポート</div><div class="settings-row-desc">保存したJSON設定を読み込みます</div></div><div style="display:flex;gap:8px;align-items:center"><input id="settings-import-prefs-file" type="file" accept="application/json" style="display:none"/><button id="settings-import-prefs-btn" class="btn-sm">読み込む</button></div></div>
+        </div>
+        <div class="settings-section">
           <h3 class="settings-section-title">セッション</h3>
           <div class="settings-row"><div><div class="settings-row-label" style="color:var(--danger)">ログアウト</div><div class="settings-row-desc">ローカルのセッション情報を削除</div></div>
           <button id="settings-logout-btn" class="btn-sm danger">ログアウト</button></div>
@@ -372,8 +410,18 @@
 
   </main>
 
+  <nav id="mobile-bottom-nav" class="mobile-bottom-nav" aria-label="メインナビゲーション">
+    <button class="mobile-nav-item active" data-tab="home" aria-label="ホーム">ホーム</button>
+    <button class="mobile-nav-item" data-tab="notifications" aria-label="通知">通知</button>
+    <button class="mobile-nav-item" data-tab="search" aria-label="検索">検索</button>
+    <button class="mobile-nav-item" data-tab="dm" aria-label="DM">DM</button>
+    <button class="mobile-nav-item" data-tab="profile" aria-label="プロフィール">プロフィール</button>
+  </nav>
+
   <div id="main-width-resizer" class="main-width-resizer hidden" title="投稿表示幅を調整"></div>
 </div>
+
+<div id="notif-live-region" class="hidden" aria-live="polite" aria-atomic="true"></div>
 
 <!-- クイック投稿ポップアップ -->
 <div id="quick-post-modal" class="modal-overlay hidden">
@@ -541,11 +589,11 @@
     <h3 class="modal-title">キーボードショートカット</h3>
     <div class="shortcuts-list">
       <div class="shortcut-row"><span>検索にフォーカス</span><strong>Ctrl/Cmd + K</strong></div>
-      <div class="shortcut-row"><span>検索タブへ移動</span><strong>/</strong></div>
-      <div class="shortcut-row"><span>ホーム/通知/検索/DM/リスト/プロフィール/設定</span><strong>g → h n s d l p t</strong></div>
-      <div class="shortcut-row"><span>本文へフォーカス</span><strong>c</strong></div>
+      <div class="shortcut-row"><span>検索タブへ移動</span><strong id="shortcut-search-key">/</strong></div>
+      <div class="shortcut-row"><span>ホーム/通知/検索/DM/リスト/プロフィール/設定</span><strong><span id="shortcut-nav-prefix-key">g</span> → h n s d l p t</strong></div>
+      <div class="shortcut-row"><span>本文へフォーカス</span><strong id="shortcut-compose-key">c</strong></div>
       <div class="shortcut-row"><span>投稿実行</span><strong>Ctrl/Cmd + Enter</strong></div>
-      <div class="shortcut-row"><span>ショートカット表示</span><strong>?</strong></div>
+      <div class="shortcut-row"><span>ショートカット表示</span><strong id="shortcut-help-key">?</strong></div>
       <div class="shortcut-row"><span>モーダルを閉じる</span><strong>Esc</strong></div>
     </div>
     <div class="modal-actions">
@@ -570,8 +618,8 @@
 <div id="home-pinned-modal" class="modal-overlay hidden">
   <div class="modal-card">
     <h3 class="modal-title">固定検索ワード</h3>
-    <p class="modal-body">ホームの「固定」タブで表示する検索語を設定します。</p>
-    <input id="home-pinned-input" class="form-input" type="text" maxlength="80" placeholder="例: Bluesky 日本"/>
+    <p class="modal-body">ホームの「固定」タブで表示する検索語を設定します（最大5件、カンマ区切り）。</p>
+    <input id="home-pinned-input" class="form-input" type="text" maxlength="400" placeholder="例: Bluesky 日本, 開発, AI, Web3"/>
     <div id="home-pinned-status" class="right-mini-status" style="margin-top:8px"></div>
     <div class="modal-actions" style="margin-top:14px">
       <button id="home-pinned-cancel" class="btn-modal-cancel" type="button">閉じる</button>
@@ -588,6 +636,21 @@
     <div class="modal-actions" style="margin-top:14px">
       <button id="search-ime-cancel" class="btn-modal-cancel" type="button">閉じる</button>
       <button id="search-ime-apply" class="btn-post" type="button">検索に反映</button>
+    </div>
+  </div>
+</div>
+
+<div id="migration-wizard-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <h3 class="modal-title">データ移行ガイド</h3>
+    <p class="modal-body">保存形式の更新により再ログインが必要になりました。次の手順で復旧できます。</p>
+    <ol style="margin:0 0 0 18px;padding:0;color:var(--text-2);font-size:.86rem;line-height:1.7">
+      <li>アプリパスワードを確認する</li>
+      <li>ログインし直す</li>
+      <li>設定インポートがある場合は再適用する</li>
+    </ol>
+    <div class="modal-actions" style="margin-top:14px">
+      <button id="migration-wizard-close" class="btn-modal-cancel" type="button">閉じる</button>
     </div>
   </div>
 </div>
@@ -611,7 +674,9 @@
 </div>
 
 <script src="js/api.js"></script>
+<script src="js/utils.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/constants.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

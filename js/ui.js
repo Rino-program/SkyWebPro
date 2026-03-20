@@ -5,21 +5,18 @@
 // =============================================
 //  ユーティリティ
 // =============================================
-function escapeHtml(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g, '&#39;');
-}
+const _utils = window.SKYDECK_UTILS || {};
+const escapeHtml = _utils.escapeHtml || (s => String(s ?? ''));
+const sanitizeHttpUrl = _utils.sanitizeHttpUrl || (() => '');
+const toSafeProfileId = _utils.toSafeProfileId || (v => String(v ?? ''));
 
-function sanitizeHttpUrl(raw) {
-  try {
-    const u = new URL(String(raw ?? ''), window.location.origin);
-    if (u.protocol === 'http:' || u.protocol === 'https:') return u.href;
-  } catch {}
-  return '';
-}
-
-function toSafeProfileId(v) {
-  const s = String(v ?? '');
-  return s.startsWith('did:handle:') ? s.slice('did:handle:'.length) : s;
+function autoLinkText(text) {
+  const escaped = escapeHtml(String(text || ''));
+  return escaped.replace(/(https?:\/\/[^\s<]+)/g, url => {
+    const safe = sanitizeHttpUrl(url);
+    if (!safe) return url;
+    return `<a href="${escapeHtml(safe)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>`;
+  });
 }
 
 function buildSafeBannerStyle(url) {
@@ -67,13 +64,15 @@ function renderRichText(text, facets = []) {
   return out.replace(/\n/g,'<br>');
 }
 
-function showToast(msg, type='info', dur=3500) {
+function showToast(msg, type='info', dur) {
+  const configured = Number(window.__skydeckToastDurationMs || 3500);
+  const ttl = Number.isFinite(Number(dur)) ? Number(dur) : (Number.isFinite(configured) ? configured : 3500);
   const c = document.getElementById('toast-container');
   const t = document.createElement('div');
   t.className = `toast ${type}`;
   t.innerHTML = escapeHtml(msg).replace(/\n/g,'<br>');
   c.appendChild(t);
-  setTimeout(() => { t.style.animation='toastOut .25s ease forwards'; setTimeout(()=>t.remove(), 260); }, dur);
+  setTimeout(() => { t.style.animation='toastOut .25s ease forwards'; setTimeout(()=>t.remove(), 260); }, ttl);
 }
 
 function setLoading(btn, on) {
@@ -87,7 +86,21 @@ function renderSpinner() {
   return `<div class="feed-spinner"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke-dasharray="40" stroke-dashoffset="20" class="spin-el"/></svg></div>`;
 }
 
-function renderEmpty(msg = '表示する内容がありません', type = 'default') {
+function renderFeedSkeleton(count = 4) {
+  const n = Math.max(1, Number(count || 4));
+  return `<div class="feed-skeleton-list">${Array.from({ length: n }).map(() => `
+    <div class="skeleton-post-card">
+      <div class="skeleton-post-avatar"></div>
+      <div class="skeleton-post-body">
+        <div class="skeleton-line w-40"></div>
+        <div class="skeleton-line w-90"></div>
+        <div class="skeleton-line w-70"></div>
+      </div>
+    </div>
+  `).join('')}</div>`;
+}
+
+function renderEmpty(msg = '表示する内容がありません', type = 'default', action = null) {
   const icons = {
     default: '🌤',
     home: '📲',
@@ -102,7 +115,10 @@ function renderEmpty(msg = '表示する内容がありません', type = 'defau
     network: '📡',
   };
   const icon = icons[type] || icons.default;
-  return `<div class="empty-state"><div class="empty-icon">${icon}</div><div>${escapeHtml(msg)}</div></div>`;
+  const cta = action && action.label
+    ? `<button class="btn-sm" data-empty-action="${escapeHtml(action.action || '')}" style="margin-top:12px">${escapeHtml(action.label)}</button>`
+    : '';
+  return `<div class="empty-state"><div class="empty-icon">${icon}</div><div>${escapeHtml(msg)}</div>${cta}</div>`;
 }
 
 function renderError(msg = 'エラーが発生しました', actionBtn = null) {
@@ -144,10 +160,32 @@ function getEmbedImages(embed) {
   return [];
 }
 
+function shouldAutoLoadFeedImages() {
+  const mode = String(window.__skydeckImageAutoLoadMode || 'always');
+  if (mode !== 'wifi') return true;
+  const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  if (!conn) return true;
+  if (conn.saveData) return false;
+  const t = String(conn.type || '').toLowerCase();
+  if (t) return t === 'wifi';
+  return true;
+}
+
 function renderImagesGrid(images) {
   const n = Math.min(images.length, 4);
-  return `<div class="post-images count-${n}" data-images-json="${escapeHtml(JSON.stringify(images.slice(0,4).map(img => ({fullsize: sanitizeHttpUrl(img.fullsize||img.thumb||''), alt: img.alt||''}))))}">${images.slice(0,4).map((img, idx) =>
-    `<div class="img-item cursor-pointer" data-img-index="${idx}"><img src="${escapeHtml(sanitizeHttpUrl(img.thumb||img.fullsize||''))}" alt="${escapeHtml(img.alt||'')}" loading="lazy" onerror="this.parentElement.style.display='none'"/></div>`
+  const safeImages = images.slice(0, 4).map((img, idx) => ({
+    fullsize: sanitizeHttpUrl(img.fullsize || img.thumb || ''),
+    thumb: sanitizeHttpUrl(img.thumb || img.fullsize || ''),
+    alt: String(img.alt || '').trim() || `投稿画像 ${idx + 1}`,
+  }));
+  const json = escapeHtml(JSON.stringify(safeImages.map(img => ({ fullsize: img.fullsize, alt: img.alt }))));
+  if (!shouldAutoLoadFeedImages()) {
+    return `<div class="post-images count-${n}" data-images-json="${json}">${safeImages.map((img, idx) =>
+      `<div class="img-item cursor-pointer hidden" data-img-index="${idx}"><img data-src="${escapeHtml(img.thumb)}" alt="${escapeHtml(img.alt)}" width="640" height="640" loading="lazy" decoding="async" fetchpriority="low" style="aspect-ratio:1/1" onerror="this.parentElement.style.display='none'"/></div>`
+    ).join('')}<div class="post-images-blocked"><button class="btn-sm load-images-btn" type="button">画像を読み込む</button></div></div>`;
+  }
+  return `<div class="post-images count-${n}" data-images-json="${json}">${safeImages.map((img, idx) =>
+    `<div class="img-item cursor-pointer" data-img-index="${idx}"><img src="${escapeHtml(img.thumb)}" alt="${escapeHtml(img.alt)}" width="640" height="640" loading="lazy" decoding="async" fetchpriority="low" style="aspect-ratio:1/1" onerror="this.parentElement.style.display='none'"/></div>`
   ).join('')}</div>`;
 }
 
@@ -277,18 +315,19 @@ function renderPostCard(item, myDid, opts = {}) {
 function renderThreadNode(thread, myDid, depth = 0) {
   if (!thread?.post) return '';
   const maxDepth = 5;
+  const replyChunkSize = 3;
   let html = renderPostCard({ post: thread.post, reply: thread.parent ? { parent: thread.parent?.post } : undefined }, myDid, { depth, isThread: true });
 
   if (thread.replies?.length && depth < maxDepth) {
-    // 最初の返信を展開、残りは折り畳み
-    const [first, ...rest] = thread.replies;
+    const visible = thread.replies.slice(0, replyChunkSize);
+    const rest = thread.replies.slice(replyChunkSize);
     html += `<div class="thread-children depth-${depth}">`;
-    html += renderThreadNode(first, myDid, depth + 1);
+    visible.forEach(r => { html += renderThreadNode(r, myDid, depth + 1); });
     if (rest.length) {
-      html += `<div class="thread-more"><button class="show-more-replies-btn" data-count="${rest.length}">他 ${rest.length} 件の返信を表示</button></div>`;
-      html += `<div class="more-replies-container hidden">`;
-      rest.forEach(r => { html += renderThreadNode(r, myDid, depth + 1); });
+      html += `<div class="more-replies-container">`;
+      rest.forEach(r => { html += `<div class="more-reply-item hidden">${renderThreadNode(r, myDid, depth + 1)}</div>`; });
       html += `</div>`;
+      html += `<div class="thread-more"><button class="show-more-replies-btn" data-count="${rest.length}" data-step="${replyChunkSize}">他 ${rest.length} 件の返信を表示</button></div>`;
     }
     html += `</div>`;
   }
@@ -308,18 +347,50 @@ const NOTIF_META = {
   starterpack: { icon: '🎁', label: 'があなたをスターターパックに追加しました' },
 };
 
+function renderNotifActorLink(actor) {
+  const handle = escapeHtml(actor?.handle || '');
+  const did = escapeHtml(actor?.did || '');
+  const label = escapeHtml(actor?.displayName || actor?.handle || 'unknown');
+  return `<span class="clickable-name notif-actor" data-handle="${handle}" data-did="${did}">${label}</span>`;
+}
+
+function renderNotifActorsBlock(actors) {
+  const list = Array.isArray(actors) ? actors.filter(Boolean) : [];
+  if (!list.length) return '<span>不明なユーザー</span>';
+  if (list.length <= 2) {
+    return `<span class="notif-actors-wrap">${list.map(renderNotifActorLink).join('、')}</span>`;
+  }
+  const collapsed = `${list.slice(0, 2).map(renderNotifActorLink).join('、')} <button class="notif-actors-toggle" data-action="expand" type="button">ほか${list.length - 2}人</button>`;
+  const expanded = `${list.map(renderNotifActorLink).join('、')} <button class="notif-actors-toggle" data-action="collapse" type="button">最小化</button>`;
+  return `<span class="notif-actors-wrap"><span class="notif-actors-collapsed">${collapsed}</span><span class="notif-actors-expanded hidden">${expanded}</span></span>`;
+}
+
 function renderNotifCard(n) {
   const { icon = '🔔', label = '' } = NOTIF_META[n.reason] || {};
-  const a = n.author;
-  const snippet = n.record?.text
+  const actors = Array.isArray(n.groupedAuthors) && n.groupedAuthors.length ? n.groupedAuthors : [n.author].filter(Boolean);
+  const a = actors[0] || n.author || {};
+  const actorText = renderNotifActorsBlock(actors);
+  const actionSnippet = n.record?.text
     ? `<div class="notif-snippet">${escapeHtml(n.record.text.slice(0, 80))}${n.record.text.length > 80 ? '…' : ''}</div>`
     : '';
+  const subjectRaw = String(n.subjectTextPreview || '').trim();
+  const subjectFallback = n.reasonSubject || n.record?.subject?.uri || n.record?.reply?.parent?.uri || '';
+  const subjectSnippet = subjectRaw
+    ? `<div class="notif-snippet">対象投稿: ${escapeHtml(subjectRaw.slice(0, 80))}${subjectRaw.length > 80 ? '…' : ''}</div>`
+    : (subjectFallback ? `<div class="notif-snippet">対象投稿: ${escapeHtml(subjectFallback.split('/').pop() || '投稿')}</div>` : '');
+  const markSubject = String(n.reasonSubject || n.record?.subject?.uri || n.record?.reply?.parent?.uri || '').trim();
+  const markReadBtn = n.isRead
+    ? ''
+    : `<button class="btn-sm notif-mark-read-btn" type="button" data-mark-read="1" data-mark-reason="${escapeHtml(String(n.reason || ''))}" data-mark-subject="${escapeHtml(markSubject)}" data-mark-indexed-at="${escapeHtml(String(n.indexedAt || ''))}" data-mark-author-did="${escapeHtml(String(n.author?.did || ''))}">既読にする</button>`;
   return `<div class="notif-card ${n.isRead ? '' : 'unread'}">
   <img class="notif-avatar" src="${escapeHtml(a.avatar||'')}" alt="" onerror="this.src=''" data-handle="${escapeHtml(a.handle)}" data-did="${escapeHtml(a.did)}"/>
   <div class="notif-body">
-    <div class="notif-text"><strong class="clickable-name" data-handle="${escapeHtml(a.handle)}" data-did="${escapeHtml(a.did)}">${escapeHtml(a.displayName||a.handle)}</strong>${label}</div>
-    ${snippet}
+    ${n.isRead ? '' : '<div class="notif-unread-label">未読</div>'}
+    <div class="notif-text">${actorText}${label}</div>
+    ${subjectSnippet}
+    ${actionSnippet}
     <div class="notif-time">${formatTime(n.indexedAt)}</div>
+    ${markReadBtn}
   </div>
   <span class="notif-icon-el">${icon}</span>
 </div>`;
@@ -336,7 +407,7 @@ function renderUserCard(profile, showFollow = false, showDm = false) {
   <div class="user-card-info">
     <div class="user-card-name clickable-name" data-handle="${escapeHtml(profile.handle)}" data-did="${escapeHtml(profile.did)}">${escapeHtml(profile.displayName||profile.handle)}</div>
     <div class="user-card-handle">@${escapeHtml(profile.handle)}</div>
-    ${profile.description ? `<div class="user-card-desc">${escapeHtml(profile.description.slice(0,80))}${profile.description.length>80?'…':''}</div>` : ''}
+    ${profile.description ? `<div class="user-card-desc">${autoLinkText(profile.description.slice(0,80))}${profile.description.length>80?'…':''}</div>` : ''}
   </div>
   <div class="user-card-actions">
     ${showDm ? `<button class="dm-start-btn" data-dm-start-did="${escapeHtml(profile.did)}">DM開始</button>` : ''}
@@ -360,7 +431,7 @@ function renderProfilePanel(profile, options = {}) {
     <div class="prof-panel-meta">
       <div class="prof-panel-name">${escapeHtml(profile.displayName||profile.handle)}</div>
       <div class="prof-panel-handle">@${escapeHtml(profile.handle)}</div>
-      ${profile.description ? `<div class="prof-panel-desc">${escapeHtml(profile.description)}</div>` : ''}
+      ${profile.description ? `<div class="prof-panel-desc">${autoLinkText(profile.description)}</div>` : ''}
       <div class="prof-panel-stats">
         <span><strong>${profile.followsCount||0}</strong> フォロー中</span>
         <span><strong>${profile.followersCount||0}</strong> フォロワー</span>

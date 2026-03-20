@@ -38,6 +38,15 @@ cd skydeck
 python -m http.server 8080
 ```
 
+コード品質チェック:
+
+```bash
+npm install
+npm run lint
+npm run format:check
+npm test
+```
+
 ## 公開手順（GitHub Pages）
 
 このリポジトリには Pages 用ワークフローが含まれています。
@@ -106,8 +115,12 @@ python -m http.server 8080
 │  └─ style.css
 ├─ js/
 │  ├─ api.js
+│  ├─ constants.js
 │  ├─ ui.js
 │  └─ app.js
+├─ .eslintrc.cjs
+├─ .prettierrc.json
+├─ package.json
 ├─ assets/
 └─ .github/workflows/deploy.yml
 ```
@@ -117,6 +130,19 @@ python -m http.server 8080
 本プロジェクトは Bluesky 非公式クライアントです。
 運用時は組織のセキュリティポリシーおよび利用規約に従ってください。
 
-# 配布について
+## ドキュメント
+
+- 開発参加手順: `CONTRIBUTING.md`
+- 変更履歴: `CHANGELOG.md`
+- 実装ステータス: `IMPLEMENTATION_STATUS.md`
+- トラブル対応: `TROUBLESHOOTING.md`
+- バージョニング方針: `VERSIONING.md`
+- 既知の制限: `KNOWN_LIMITATIONS.md`
+- ブラウザサポート: `BROWSER_SUPPORT.md`
+- デプロイ復旧手順: `DEPLOY_RECOVERY.md`
+- セキュリティ方針: `SECURITY.md`
+
+## 配布について
+
 改変して共有する事は可能です、その場合は原作者として@Rino-programを記載してくれると嬉しいです(必須ではない)。
 改変したかどうかに関わらず、完全なオリジナルとして出す事や売って金銭をもらう事は禁止します。

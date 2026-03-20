@@ -1,0 +1,17 @@
+{
+  "name": "skydeck",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Static Bluesky client",
+  "scripts": {
+    "test": "node --test",
+    "lint": "eslint js/*.js",
+    "lint:fix": "eslint js/*.js --fix",
+    "format": "prettier --write \"**/*.{html,css,js,md,json}\"",
+    "format:check": "prettier --check \"**/*.{html,css,js,md,json}\""
+  },
+  "devDependencies": {
+    "eslint": "^8.57.1",
+    "prettier": "^3.3.3"
+  }
+}

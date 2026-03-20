@@ -19,28 +19,83 @@ const S = {
   isTabletView: false,
   isLandscape: false,
   isTouch: false,
+  dmConvos: [],
+  lastUnreadCount: -1,
+  notifFilterMode: 'all',
 };
 
-const QUICK_NOTE_KEY = 'skydeck_quick_note_v1';
-const QUICK_NOTE_LIST_KEY = 'skydeck_quick_note_list_v1';
-const THEME_KEY = 'skydeck_theme_v1';
-const APP_MAX_IMAGE_BYTES = 1000000;
-const RIGHT_PANEL_PREFS_KEY = 'skydeck_right_panel_prefs_v1';
-const POST_HISTORY_KEY = 'skydeck_post_history_v1';
-const SEARCH_HISTORY_KEY = 'skydeck_search_history_v1';
-const COMPOSE_CACHE_KEY = 'skydeck_compose_cache_v1';
-const UI_PREFS_KEY = 'skydeck_ui_prefs_v1';
-const EXPERIENCE_PREFS_KEY = 'skydeck_experience_prefs_v1';
-const ACTIVITY_STATS_KEY = 'skydeck_activity_stats_v1';
-const HOME_PINNED_QUERY_KEY = 'skydeck_home_pinned_query_v1';
-const SCROLL_POSITIONS_KEY = 'skydeck_scroll_positions_v1';
-const QUICK_POST_WIDTH_KEY = 'skydeck_quick_post_width_v1';
-const FEED_WIDTH_PREFS_KEY = 'skydeck_feed_width_prefs_v1';
-const ADMIN_REPORT_HANDLE = 'rino-program.bsky.social';
-const LOGIN_CONSOLE_MAX_LINES = 200;
+const C = window.SKYDECK_CONST || {};
+const QUICK_NOTE_KEY = C.QUICK_NOTE_KEY || 'skydeck_quick_note_v1';
+const QUICK_NOTE_LIST_KEY = C.QUICK_NOTE_LIST_KEY || 'skydeck_quick_note_list_v1';
+const THEME_KEY = C.THEME_KEY || 'skydeck_theme_v1';
+const APP_MAX_IMAGE_BYTES = Number(C.APP_MAX_IMAGE_BYTES || 1000000);
+const RIGHT_PANEL_PREFS_KEY = C.RIGHT_PANEL_PREFS_KEY || 'skydeck_right_panel_prefs_v1';
+const POST_HISTORY_KEY = C.POST_HISTORY_KEY || 'skydeck_post_history_v1';
+const SEARCH_HISTORY_KEY = C.SEARCH_HISTORY_KEY || 'skydeck_search_history_v1';
+const COMPOSE_CACHE_KEY = C.COMPOSE_CACHE_KEY || 'skydeck_compose_cache_v1';
+const UI_PREFS_KEY = C.UI_PREFS_KEY || 'skydeck_ui_prefs_v1';
+const EXPERIENCE_PREFS_KEY = C.EXPERIENCE_PREFS_KEY || 'skydeck_experience_prefs_v1';
+const ACTIVITY_STATS_KEY = C.ACTIVITY_STATS_KEY || 'skydeck_activity_stats_v1';
+const HOME_PINNED_QUERY_KEY = C.HOME_PINNED_QUERY_KEY || 'skydeck_home_pinned_query_v1';
+const SCROLL_POSITIONS_KEY = C.SCROLL_POSITIONS_KEY || 'skydeck_scroll_positions_v1';
+const QUICK_POST_WIDTH_KEY = C.QUICK_POST_WIDTH_KEY || 'skydeck_quick_post_width_v1';
+const FEED_WIDTH_PREFS_KEY = C.FEED_WIDTH_PREFS_KEY || 'skydeck_feed_width_prefs_v1';
+const NOTIF_POLL_MS_KEY = C.NOTIF_POLL_MS_KEY || 'skydeck_notif_poll_ms_v1';
+const TOAST_DURATION_MS_KEY = C.TOAST_DURATION_MS_KEY || 'skydeck_toast_duration_ms_v1';
+const STARTUP_TAB_MODE_KEY = C.STARTUP_TAB_MODE_KEY || 'skydeck_startup_tab_mode_v1';
+const IMAGE_AUTOLOAD_MODE_KEY = C.IMAGE_AUTOLOAD_MODE_KEY || 'skydeck_image_autoload_mode_v1';
+const POST_DENSITY_KEY = C.POST_DENSITY_KEY || 'skydeck_post_density_v1';
+const FONT_SCALE_KEY = C.FONT_SCALE_KEY || 'skydeck_font_scale_v1';
+const READING_WIDTH_KEY = C.READING_WIDTH_KEY || 'skydeck_reading_width_v1';
+const SHORTCUT_PREFS_KEY = C.SHORTCUT_PREFS_KEY || 'skydeck_shortcut_prefs_v1';
+const SHORTCUTS_ENABLED_KEY = C.SHORTCUTS_ENABLED_KEY || 'skydeck_shortcuts_enabled_v1';
+const INACTIVITY_TIMEOUT_MIN_KEY = C.INACTIVITY_TIMEOUT_MIN_KEY || 'skydeck_inactivity_timeout_min_v1';
+const PERF_METRICS_KEY = C.PERF_METRICS_KEY || 'skydeck_perf_metrics_v1';
+const PINNED_QUERIES_KEY = C.PINNED_QUERIES_KEY || 'skydeck_pinned_queries_v1';
+const REPLY_TEMPLATE_KEY = C.REPLY_TEMPLATE_KEY || 'skydeck_reply_template_v1';
+const POST_QUEUE_KEY = C.POST_QUEUE_KEY || 'skydeck_post_queue_v1';
+const DM_READ_STATE_KEY = C.DM_READ_STATE_KEY || 'skydeck_dm_read_state_v1';
+const LOG_LEVEL_KEY = C.LOG_LEVEL_KEY || 'skydeck_log_level_v1';
+const ADMIN_REPORT_HANDLE = C.ADMIN_REPORT_HANDLE || 'rino-program.bsky.social';
+const LOGIN_CONSOLE_MAX_LINES = Number(C.LOGIN_CONSOLE_MAX_LINES || 200);
+const DEFAULT_SHORTCUT_PREFS = C.DEFAULT_SHORTCUT_PREFS || {
+  showHelp: '?',
+  focusSearch: '/',
+  focusCompose: 'c',
+  navPrefix: 'g',
+};
+const SETTINGS_EXPORT_KEYS = [
+  THEME_KEY,
+  UI_PREFS_KEY,
+  EXPERIENCE_PREFS_KEY,
+  RIGHT_PANEL_PREFS_KEY,
+  FEED_WIDTH_PREFS_KEY,
+  QUICK_POST_WIDTH_KEY,
+  HOME_PINNED_QUERY_KEY,
+  NOTIF_POLL_MS_KEY,
+  TOAST_DURATION_MS_KEY,
+  IMAGE_AUTOLOAD_MODE_KEY,
+  INACTIVITY_TIMEOUT_MIN_KEY,
+  POST_DENSITY_KEY,
+  FONT_SCALE_KEY,
+  READING_WIDTH_KEY,
+  SHORTCUT_PREFS_KEY,
+  SHORTCUTS_ENABLED_KEY,
+  SEARCH_HISTORY_KEY,
+  QUICK_NOTE_KEY,
+  QUICK_NOTE_LIST_KEY,
+  'skydeck_drafts_v1',
+];
 const APP_MEMORY_STORAGE = new Map();
 const APP_FETCH_CACHE = new Map();
+const NORMALIZED_STORE = {
+  posts: new Map(),
+  profiles: new Map(),
+};
 const SCROLL_POSITIONS = new Map();
+const NOTIF_SUBJECT_CACHE = new Map();
+let SEARCH_ABORT_CONTROLLER = null;
+const MODAL_LAST_FOCUS = new Map();
 let FEED_WIDTH_APPLY_LOCK = false;
 
 function safeStorageGet(key) {
@@ -61,6 +116,31 @@ function safeStorageSet(key, value) {
 
 function cacheKey(parts) {
   return parts.map(v => String(v ?? '')).join('::');
+}
+
+function normalizeProfile(profile) {
+  const key = String(profile?.did || profile?.handle || '');
+  if (!key) return profile;
+  const prev = NORMALIZED_STORE.profiles.get(key) || {};
+  const next = { ...prev, ...profile };
+  NORMALIZED_STORE.profiles.set(key, next);
+  return next;
+}
+
+function normalizePost(post) {
+  const key = String(post?.uri || '');
+  if (!key) return post;
+  const prev = NORMALIZED_STORE.posts.get(key) || {};
+  const next = { ...prev, ...post, author: normalizeProfile(post?.author || {}) };
+  NORMALIZED_STORE.posts.set(key, next);
+  return next;
+}
+
+function normalizeFeedRows(rows) {
+  return (Array.isArray(rows) ? rows : []).map(item => {
+    if (!item?.post) return item;
+    return { ...item, post: normalizePost(item.post) };
+  });
 }
 
 function getCachedData(key, ttlMs) {
@@ -91,13 +171,750 @@ function clearFetchCache(prefix = '') {
   });
 }
 
+function getLogLevel() {
+  const raw = String(safeStorageGet(LOG_LEVEL_KEY) || 'info');
+  return ['debug', 'info', 'warn', 'error'].includes(raw) ? raw : 'info';
+}
+
+function shouldLog(level) {
+  const order = { debug: 10, info: 20, warn: 30, error: 40 };
+  const current = order[getLogLevel()] || 20;
+  const target = order[String(level || 'info')] || 20;
+  return target >= current;
+}
+
+function appLog(level, ...args) {
+  if (!shouldLog(level)) return;
+  const fn = console[level] || console.log;
+  fn(...args);
+}
+
+function getPostQueue() {
+  try {
+    const raw = JSON.parse(safeStorageGet(POST_QUEUE_KEY) || '[]');
+    return Array.isArray(raw) ? raw : [];
+  } catch {
+    return [];
+  }
+}
+
+function savePostQueue(list) {
+  safeStorageSet(POST_QUEUE_KEY, JSON.stringify(Array.isArray(list) ? list : []));
+}
+
+function enqueuePost(payload) {
+  const list = getPostQueue();
+  list.push({
+    id: `q-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    queuedAt: new Date().toISOString(),
+    ...payload,
+  });
+  savePostQueue(list.slice(-20));
+}
+
+function getDmReadState() {
+  try {
+    const raw = JSON.parse(safeStorageGet(DM_READ_STATE_KEY) || '{}');
+    return raw && typeof raw === 'object' ? raw : {};
+  } catch {
+    return {};
+  }
+}
+
+function setDmReadState(convoId, isRead) {
+  const map = getDmReadState();
+  map[String(convoId || '')] = !!isRead;
+  safeStorageSet(DM_READ_STATE_KEY, JSON.stringify(map));
+}
+
+function getVisibleModals() {
+  return [...document.querySelectorAll('.modal-overlay')].filter(m => !m.classList.contains('hidden'));
+}
+
+function getTopVisibleModal() {
+  const visible = getVisibleModals();
+  if (!visible.length) return null;
+  return visible[visible.length - 1];
+}
+
+function getFocusableElements(root) {
+  if (!root) return [];
+  const nodes = root.querySelectorAll('a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])');
+  return [...nodes].filter(el => !el.classList.contains('hidden') && el.offsetParent !== null);
+}
+
+function openModalById(id, focusSelector = '') {
+  const modal = document.getElementById(id);
+  if (!modal) return;
+  if (modal.classList.contains('hidden')) {
+    const active = document.activeElement;
+    if (active && active instanceof HTMLElement) MODAL_LAST_FOCUS.set(id, active);
+  }
+  modal.classList.remove('hidden');
+  if (focusSelector) {
+    const target = modal.querySelector(focusSelector);
+    if (target && target instanceof HTMLElement) {
+      target.focus();
+      return;
+    }
+  }
+  const firstFocusable = getFocusableElements(modal)[0];
+  if (firstFocusable) firstFocusable.focus();
+  else {
+    modal.setAttribute('tabindex', '-1');
+    modal.focus();
+  }
+}
+
+function closeModalById(id) {
+  const modal = document.getElementById(id);
+  if (!modal) return;
+  modal.classList.add('hidden');
+  const prev = MODAL_LAST_FOCUS.get(id);
+  MODAL_LAST_FOCUS.delete(id);
+  if (prev && prev.isConnected && prev instanceof HTMLElement) {
+    prev.focus();
+  }
+}
+
+function trapFocusInTopModal(e) {
+  if (e.key !== 'Tab') return false;
+  const modal = getTopVisibleModal();
+  if (!modal) return false;
+  const focusables = getFocusableElements(modal);
+  if (!focusables.length) {
+    e.preventDefault();
+    modal.focus();
+    return true;
+  }
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  const active = document.activeElement;
+  if (e.shiftKey) {
+    if (active === first || !modal.contains(active)) {
+      e.preventDefault();
+      last.focus();
+      return true;
+    }
+    return false;
+  }
+  if (active === last || !modal.contains(active)) {
+    e.preventDefault();
+    first.focus();
+    return true;
+  }
+  return false;
+}
+
+function closeTopVisibleModal() {
+  const modal = getTopVisibleModal();
+  if (!modal) return false;
+  const id = modal.id;
+  if (id === 'quick-post-modal') {
+    closeQuickPostModal();
+    return true;
+  }
+  if (id === 'delete-modal') {
+    closeModalById('delete-modal');
+    S.deleteTarget = null;
+    return true;
+  }
+  if (id === 'image-viewer-modal') {
+    closeImageViewer();
+    return true;
+  }
+  if (id === 'logout-action-modal') {
+    closeLogoutActionModal();
+    return true;
+  }
+  if (id === 'shortcuts-modal') {
+    closeShortcutsModal();
+    return true;
+  }
+  if (id === 'dm-start-modal') {
+    closeDmStartModal();
+    return true;
+  }
+  if (id === 'home-pinned-modal') {
+    closePinnedModal();
+    return true;
+  }
+  if (id === 'search-ime-modal') {
+    closeSearchImeModal();
+    return true;
+  }
+  closeModalById(id);
+  return true;
+}
+
+function syncSubTabsAria() {
+  document.querySelectorAll('.sub-tabs').forEach(group => {
+    group.setAttribute('role', 'tablist');
+    group.querySelectorAll('.sub-tab').forEach(tab => {
+      const active = tab.classList.contains('active');
+      tab.setAttribute('role', 'tab');
+      tab.setAttribute('aria-selected', active ? 'true' : 'false');
+      tab.setAttribute('tabindex', active ? '0' : '-1');
+    });
+  });
+}
+
+function syncIconButtonAriaLabels() {
+  document.querySelectorAll('button').forEach(btn => {
+    if (btn.getAttribute('aria-label')) return;
+    const hasText = String(btn.textContent || '').trim().length > 0;
+    if (hasText) return;
+    const title = String(btn.getAttribute('title') || '').trim();
+    if (title) btn.setAttribute('aria-label', title);
+  });
+}
+
+function syncExplicitAriaLabels() {
+  document.querySelectorAll('.refresh-btn').forEach(btn => {
+    if (btn.getAttribute('aria-label')) return;
+    const target = String(btn.dataset.target || '').trim();
+    const label = target ? `${target}を更新` : '更新';
+    btn.setAttribute('aria-label', label);
+  });
+  document.querySelectorAll('.icon-btn').forEach(btn => {
+    if (btn.getAttribute('aria-label')) return;
+    const title = String(btn.getAttribute('title') || '').trim();
+    btn.setAttribute('aria-label', title || '操作ボタン');
+  });
+}
+
+function normalizeShortcutKey(value, fallback = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return String(fallback || '').toLowerCase();
+  return raw[0].toLowerCase();
+}
+
+function sanitizeShortcutPrefs(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  return {
+    showHelp: normalizeShortcutKey(src.showHelp, DEFAULT_SHORTCUT_PREFS.showHelp),
+    focusSearch: normalizeShortcutKey(src.focusSearch, DEFAULT_SHORTCUT_PREFS.focusSearch),
+    focusCompose: normalizeShortcutKey(src.focusCompose, DEFAULT_SHORTCUT_PREFS.focusCompose),
+    navPrefix: normalizeShortcutKey(src.navPrefix, DEFAULT_SHORTCUT_PREFS.navPrefix),
+  };
+}
+
+function hasDuplicateShortcutPrefs(prefs) {
+  const values = [prefs.showHelp, prefs.focusSearch, prefs.focusCompose, prefs.navPrefix].filter(Boolean);
+  return new Set(values).size !== values.length;
+}
+
+function getShortcutPrefs() {
+  try {
+    return sanitizeShortcutPrefs(JSON.parse(safeStorageGet(SHORTCUT_PREFS_KEY) || 'null'));
+  } catch {
+    return { ...DEFAULT_SHORTCUT_PREFS };
+  }
+}
+
+function getActiveShortcutPrefs() {
+  const active = window.__skydeckShortcutPrefs;
+  if (active && typeof active === 'object') return sanitizeShortcutPrefs(active);
+  return getShortcutPrefs();
+}
+
+function getShortcutsEnabled() {
+  const raw = safeStorageGet(SHORTCUTS_ENABLED_KEY);
+  if (raw === null) return true;
+  return raw !== '0';
+}
+
+function applyShortcutsEnabledState(enabled) {
+  const on = !!enabled;
+  window.__skydeckShortcutsEnabled = on;
+  const ids = [
+    'settings-shortcut-help',
+    'settings-shortcut-search',
+    'settings-shortcut-compose',
+    'settings-shortcut-nav',
+    'settings-shortcut-reset',
+  ];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = !on;
+  });
+}
+
+function setShortcutsEnabled(enabled) {
+  safeStorageSet(SHORTCUTS_ENABLED_KEY, enabled ? '1' : '0');
+  applyShortcutsEnabledState(enabled);
+}
+
+function syncShortcutsEnabledUi() {
+  const toggle = document.getElementById('settings-shortcuts-enabled');
+  if (!toggle) return;
+  toggle.checked = getShortcutsEnabled();
+}
+
+function onShortcutsEnabledChange() {
+  const toggle = document.getElementById('settings-shortcuts-enabled');
+  if (!toggle) return;
+  setShortcutsEnabled(!!toggle.checked);
+  showToast(toggle.checked ? 'ショートカット操作を有効化しました' : 'ショートカット操作を無効化しました', 'success', 1500);
+}
+
+function syncShortcutHintUi() {
+  const prefs = getActiveShortcutPrefs();
+  const help = document.getElementById('shortcut-help-key');
+  const search = document.getElementById('shortcut-search-key');
+  const compose = document.getElementById('shortcut-compose-key');
+  const nav = document.getElementById('shortcut-nav-prefix-key');
+  if (help) help.textContent = prefs.showHelp;
+  if (search) search.textContent = prefs.focusSearch;
+  if (compose) compose.textContent = prefs.focusCompose;
+  if (nav) nav.textContent = prefs.navPrefix;
+}
+
+function setShortcutPrefs(prefs) {
+  const next = sanitizeShortcutPrefs(prefs);
+  safeStorageSet(SHORTCUT_PREFS_KEY, JSON.stringify(next));
+  window.__skydeckShortcutPrefs = next;
+  syncShortcutHintUi();
+}
+
+function syncShortcutPrefsUi() {
+  const prefs = getShortcutPrefs();
+  const help = document.getElementById('settings-shortcut-help');
+  const search = document.getElementById('settings-shortcut-search');
+  const compose = document.getElementById('settings-shortcut-compose');
+  const nav = document.getElementById('settings-shortcut-nav');
+  if (help) help.value = prefs.showHelp;
+  if (search) search.value = prefs.focusSearch;
+  if (compose) compose.value = prefs.focusCompose;
+  if (nav) nav.value = prefs.navPrefix;
+}
+
+function onShortcutPrefsChange() {
+  if (!getShortcutsEnabled()) return;
+  const help = document.getElementById('settings-shortcut-help');
+  const search = document.getElementById('settings-shortcut-search');
+  const compose = document.getElementById('settings-shortcut-compose');
+  const nav = document.getElementById('settings-shortcut-nav');
+  if (!help || !search || !compose || !nav) return;
+  const next = sanitizeShortcutPrefs({
+    showHelp: help.value,
+    focusSearch: search.value,
+    focusCompose: compose.value,
+    navPrefix: nav.value,
+  });
+  if (hasDuplicateShortcutPrefs(next)) {
+    showToast('ショートカットが重複しています。別のキーを指定してください。', 'error', 2200);
+    syncShortcutPrefsUi();
+    return;
+  }
+  setShortcutPrefs(next);
+  syncShortcutPrefsUi();
+  showToast('ショートカットを更新しました', 'success', 1400);
+}
+
+function resetShortcutPrefs() {
+  if (!getShortcutsEnabled()) return;
+  setShortcutPrefs(DEFAULT_SHORTCUT_PREFS);
+  syncShortcutPrefsUi();
+  showToast('ショートカットを既定値に戻しました', 'success', 1400);
+}
+
+function getImageAutoloadMode() {
+  const mode = String(safeStorageGet(IMAGE_AUTOLOAD_MODE_KEY) || 'always');
+  return mode === 'wifi' ? 'wifi' : 'always';
+}
+
+function setImageAutoloadMode(mode) {
+  const next = mode === 'wifi' ? 'wifi' : 'always';
+  safeStorageSet(IMAGE_AUTOLOAD_MODE_KEY, next);
+  window.__skydeckImageAutoLoadMode = next;
+}
+
+function syncImageAutoloadUi() {
+  const sel = document.getElementById('settings-image-autoload');
+  if (!sel) return;
+  sel.value = getImageAutoloadMode();
+}
+
+function onImageAutoloadModeChange() {
+  const sel = document.getElementById('settings-image-autoload');
+  if (!sel) return;
+  setImageAutoloadMode(sel.value);
+  showToast('画像自動読み込み設定を変更しました', 'success', 1400);
+}
+
+function getNotifPollMs() {
+  const raw = Number(safeStorageGet(NOTIF_POLL_MS_KEY) || 30000);
+  const allowed = [15000, 30000, 60000, 120000, 300000];
+  return allowed.includes(raw) ? raw : 30000;
+}
+
+function setNotifPollMs(ms) {
+  const allowed = [15000, 30000, 60000, 120000, 300000];
+  const v = Number(ms);
+  safeStorageSet(NOTIF_POLL_MS_KEY, String(allowed.includes(v) ? v : 30000));
+}
+
+function getStartupTabMode() {
+  const mode = String(safeStorageGet(STARTUP_TAB_MODE_KEY) || 'auto');
+  return mode === 'manual' ? 'manual' : 'auto';
+}
+
+function setStartupTabMode(mode) {
+  const next = mode === 'manual' ? 'manual' : 'auto';
+  safeStorageSet(STARTUP_TAB_MODE_KEY, next);
+}
+
+function syncStartupTabModeUi() {
+  const sel = document.getElementById('settings-startup-tab-mode');
+  if (!sel) return;
+  sel.value = getStartupTabMode();
+}
+
+function onStartupTabModeChange() {
+  const sel = document.getElementById('settings-startup-tab-mode');
+  if (!sel) return;
+  setStartupTabMode(sel.value);
+  showToast('起動時タブ設定を変更しました', 'success', 1400);
+}
+
+function getInactivityTimeoutMinutes() {
+  const raw = Number(safeStorageGet(INACTIVITY_TIMEOUT_MIN_KEY) || 0);
+  const allowed = [0, 15, 30, 60];
+  return allowed.includes(raw) ? raw : 0;
+}
+
+function setInactivityTimeoutMinutes(minutes) {
+  const v = Number(minutes);
+  const allowed = [0, 15, 30, 60];
+  const next = allowed.includes(v) ? v : 0;
+  safeStorageSet(INACTIVITY_TIMEOUT_MIN_KEY, String(next));
+}
+
+function syncInactivityTimeoutUi() {
+  const sel = document.getElementById('settings-inactivity-timeout');
+  if (!sel) return;
+  sel.value = String(getInactivityTimeoutMinutes());
+}
+
+let inactivityTimer = null;
+function resetInactivityTimer() {
+  clearTimeout(inactivityTimer);
+  inactivityTimer = null;
+  const min = getInactivityTimeoutMinutes();
+  if (!S.session || min <= 0) return;
+  inactivityTimer = setTimeout(() => {
+    showToast('一定時間操作がなかったためログアウトしました', 'info', 2600);
+    handleLogout();
+  }, min * 60 * 1000);
+}
+
+function onInactivityTimeoutChange() {
+  const sel = document.getElementById('settings-inactivity-timeout');
+  if (!sel) return;
+  setInactivityTimeoutMinutes(sel.value);
+  resetInactivityTimer();
+  showToast('自動ログアウト設定を変更しました', 'success', 1400);
+}
+
+function getReadingWidthMode() {
+  const raw = Number(safeStorageGet(READING_WIDTH_KEY) || 64);
+  return [56, 64, 72].includes(raw) ? raw : 64;
+}
+
+function applyReadingWidthMode(ch) {
+  document.documentElement.style.setProperty('--reading-max-ch', `${ch}ch`);
+}
+
+function setReadingWidthMode(ch) {
+  const next = [56, 64, 72].includes(Number(ch)) ? Number(ch) : 64;
+  safeStorageSet(READING_WIDTH_KEY, String(next));
+  applyReadingWidthMode(next);
+}
+
+function syncReadingWidthUi() {
+  const sel = document.getElementById('settings-reading-width');
+  if (!sel) return;
+  sel.value = String(getReadingWidthMode());
+}
+
+function onReadingWidthModeChange() {
+  const sel = document.getElementById('settings-reading-width');
+  if (!sel) return;
+  setReadingWidthMode(sel.value);
+  showToast('1行あたり文字数目安を変更しました', 'success', 1400);
+}
+
+function getThemeMode() {
+  const mode = String(safeStorageGet(THEME_KEY) || 'light');
+  return ['light', 'dark', 'ocean', 'forest'].includes(mode) ? mode : 'light';
+}
+
+function syncThemeUi() {
+  const sel = document.getElementById('settings-theme-mode');
+  if (sel) sel.value = getThemeMode();
+}
+
+function onThemeModeChange() {
+  const sel = document.getElementById('settings-theme-mode');
+  if (!sel) return;
+  applyTheme(sel.value);
+  showToast('テーマを変更しました', 'success', 1400);
+}
+
+function getFontScaleMode() {
+  const mode = String(safeStorageGet(FONT_SCALE_KEY) || 'normal');
+  if (mode === 'small' || mode === 'large') return mode;
+  return 'normal';
+}
+
+function applyFontScaleMode(mode) {
+  const root = document.documentElement;
+  if (!root) return;
+  root.classList.remove('font-scale-small', 'font-scale-large');
+  if (mode === 'small') root.classList.add('font-scale-small');
+  else if (mode === 'large') root.classList.add('font-scale-large');
+}
+
+function setFontScaleMode(mode) {
+  const next = mode === 'small' || mode === 'large' ? mode : 'normal';
+  safeStorageSet(FONT_SCALE_KEY, next);
+  applyFontScaleMode(next);
+}
+
+function syncFontScaleUi() {
+  const sel = document.getElementById('settings-font-scale');
+  if (!sel) return;
+  sel.value = getFontScaleMode();
+}
+
+function onFontScaleModeChange() {
+  const sel = document.getElementById('settings-font-scale');
+  if (!sel) return;
+  setFontScaleMode(sel.value);
+  showToast('文字サイズを変更しました', 'success', 1400);
+}
+
+function getPostDensityMode() {
+  const mode = String(safeStorageGet(POST_DENSITY_KEY) || 'normal');
+  return mode === 'compact' ? 'compact' : 'normal';
+}
+
+function setPostDensityMode(mode) {
+  const next = mode === 'compact' ? 'compact' : 'normal';
+  safeStorageSet(POST_DENSITY_KEY, next);
+  applyPostDensityMode(next);
+}
+
+function applyPostDensityMode(mode) {
+  const root = document.body;
+  if (!root) return;
+  root.classList.toggle('density-compact', mode === 'compact');
+}
+
+function syncPostDensityUi() {
+  const sel = document.getElementById('settings-post-density');
+  if (!sel) return;
+  sel.value = getPostDensityMode();
+}
+
+function onPostDensityModeChange() {
+  const sel = document.getElementById('settings-post-density');
+  if (!sel) return;
+  setPostDensityMode(sel.value);
+  showToast('投稿カード密度を変更しました', 'success', 1400);
+}
+
+function getToastDurationMs() {
+  const raw = Number(safeStorageGet(TOAST_DURATION_MS_KEY) || 3500);
+  const allowed = [2000, 3500, 5000, 8000];
+  return allowed.includes(raw) ? raw : 3500;
+}
+
+function setToastDurationMs(ms) {
+  const v = Number(ms);
+  const allowed = [2000, 3500, 5000, 8000];
+  const next = allowed.includes(v) ? v : 3500;
+  safeStorageSet(TOAST_DURATION_MS_KEY, String(next));
+  window.__skydeckToastDurationMs = next;
+}
+
+function syncToastDurationUi() {
+  const sel = document.getElementById('settings-toast-duration');
+  if (!sel) return;
+  sel.value = String(getToastDurationMs());
+}
+
+function onToastDurationChange() {
+  const sel = document.getElementById('settings-toast-duration');
+  if (!sel) return;
+  setToastDurationMs(sel.value);
+  showToast('トースト表示時間を変更しました', 'success', 1400);
+}
+
+function buildSettingsExportPayload() {
+  const data = {};
+  SETTINGS_EXPORT_KEYS.forEach(key => {
+    const value = safeStorageGet(key);
+    if (value !== null && value !== undefined) data[key] = value;
+  });
+  return {
+    app: 'SkyDeck',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    data,
+  };
+}
+
+function downloadTextFile(fileName, text, mimeType = 'application/json') {
+  const blob = new Blob([text], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function exportSettingsToFile() {
+  const payload = buildSettingsExportPayload();
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  downloadTextFile(`skydeck-settings-${stamp}.json`, JSON.stringify(payload, null, 2));
+  showToast('設定をエクスポートしました', 'success', 1500);
+}
+
+function applyImportedSettings() {
+  applySavedTheme();
+  syncThemeUi();
+  applySavedUiPrefs();
+  syncSubTabUi();
+  syncExperienceUi();
+  applyRightPanelPrefs();
+  applyQuickPostWidth(getQuickPostWidth());
+  applyFeedWidthPrefs();
+  syncPinnedUi();
+  syncNotifPollUi();
+  syncToastDurationUi();
+  syncStartupTabModeUi();
+  syncInactivityTimeoutUi();
+  syncFontScaleUi();
+  syncReadingWidthUi();
+  syncPostDensityUi();
+  syncShortcutsEnabledUi();
+  setShortcutsEnabled(getShortcutsEnabled());
+  syncImageAutoloadUi();
+  syncShortcutPrefsUi();
+  setShortcutPrefs(getShortcutPrefs());
+  setImageAutoloadMode(getImageAutoloadMode());
+  setToastDurationMs(getToastDurationMs());
+  setFontScaleMode(getFontScaleMode());
+  setReadingWidthMode(getReadingWidthMode());
+  setPostDensityMode(getPostDensityMode());
+  if (S.session) {
+    stopNotifPoll();
+    startNotifPoll();
+    resetInactivityTimer();
+  }
+  renderSearchHistory();
+  renderComposeTemplates();
+  renderQuickNoteList();
+}
+
+async function importSettingsFromFile(file) {
+  if (!file) return;
+  const text = await file.text();
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    showToast('JSONの解析に失敗しました', 'error');
+    return;
+  }
+  const data = parsed?.data;
+  if (!data || typeof data !== 'object') {
+    showToast('設定ファイルの形式が不正です', 'error');
+    return;
+  }
+  let applied = 0;
+  SETTINGS_EXPORT_KEYS.forEach(key => {
+    if (Object.prototype.hasOwnProperty.call(data, key) && typeof data[key] === 'string') {
+      safeStorageSet(key, data[key]);
+      applied += 1;
+    }
+  });
+  applyImportedSettings();
+  showToast(`設定を読み込みました (${applied}件)`, 'success', 1800);
+}
+
+function syncNotifPollUi() {
+  const sel = document.getElementById('settings-notif-interval');
+  if (!sel) return;
+  sel.value = String(getNotifPollMs());
+      renderComposeHashtagSuggestions();
+}
+
+function onNotifPollIntervalChange() {
+  const sel = document.getElementById('settings-notif-interval');
+  if (!sel) return;
+  setNotifPollMs(sel.value);
+  if (S.session) {
+    stopNotifPoll();
+    startNotifPoll();
+  }
+  showToast('通知更新間隔を変更しました', 'success', 1600);
+}
+
+function toUserErrorMessage(err, fallback = '処理に失敗しました') {
+  const msg = String(err?.message || '').trim();
+  if (!msg) return fallback;
+  if (err?.name === 'AbortError') return '';
+  if (/failed to fetch|networkerror|fetch failed|network request/i.test(msg)) return '通信に失敗しました。接続状況を確認して再試行してください。';
+  if (/session_expired|期限切れ|再ログイン/i.test(msg)) return 'セッション期限切れです。再ログインしてください。';
+  if (/\(401\)|401/.test(msg)) return '認証エラーです。ログイン情報を確認してください。';
+  if (/\(403\)|403/.test(msg)) return '権限がありません。設定またはアクセス権を確認してください。';
+  if (/\(429\)|429/.test(msg)) return 'リクエストが多すぎます。少し待ってから再試行してください。';
+  return msg;
+}
+
+function showErrorToast(err, fallback = '処理に失敗しました') {
+  if (err?.code === 'SESSION_EXPIRED' || /session_expired|期限切れ/.test(String(err?.message || ''))) {
+    if (typeof setReloginReason === 'function') setReloginReason('session_expired');
+    handleLogout({ preserveCompose: true });
+    const message = 'セッション期限切れです。入力内容は保持しました。再ログインしてください。';
+    showToast(message, 'error', 3200);
+    return;
+  }
+  const message = toUserErrorMessage(err, fallback);
+  if (message) showToast(message, 'error');
+}
+
+function backupFailedPostToDraft(text, imageCount = 0, meta = '') {
+  const body = String(text || '').trim();
+  if (!body) return false;
+  const imageNote = imageCount > 0 ? `\n\n[メモ] 画像 ${imageCount} 枚は再添付が必要です。` : '';
+  const metaNote = meta ? `\n\n[メモ] ${meta}` : '';
+  saveDraft(`${body}${imageNote}${metaNote}`);
+  return true;
+}
+
+function sanitizeSensitiveText(text) {
+  const src = String(text || '');
+  return src
+    .replace(/([A-Za-z0-9_\-]{4,})-([A-Za-z0-9_\-]{4,})-([A-Za-z0-9_\-]{4,})-([A-Za-z0-9_\-]{4,})/g, '****-****-****-****')
+    .replace(/(authorization\s*[:=]\s*bearer\s+)[^\s]+/ig, '$1***')
+    .replace(/(refreshJwt|accessJwt|password)\s*[:=]\s*["'][^"']+["']/ig, '$1="***"');
+}
+
 function formatLogArg(v) {
-  if (v instanceof Error) return v.stack || v.message;
-  if (typeof v === 'string') return v;
-  try { return JSON.stringify(v); } catch { return String(v); }
+  if (v instanceof Error) return sanitizeSensitiveText(v.stack || v.message);
+  if (typeof v === 'string') return sanitizeSensitiveText(v);
+  try { return sanitizeSensitiveText(JSON.stringify(v)); } catch { return sanitizeSensitiveText(String(v)); }
 }
 
 function appendLoginConsole(level, args) {
+  if (!shouldLog(level)) return;
   const out = document.getElementById('login-console-output');
   if (!out) return;
   const ts = new Date().toLocaleTimeString('ja-JP', { hour12: false });
@@ -305,13 +1122,17 @@ function initMainWidthResizer() {
   const _origError = console.error.bind(console);
   console.error = function (...args) {
     _origError(...args);
-    const msg = args
-      .map(a => (a instanceof Error ? a.message : String(a ?? '')))
-      .join(' ')
-      .trim();
-    if (msg && typeof showToast === 'function') showToast(msg, 'error', 5000);
+    const text = args.map(formatLogArg).join(' ').trim();
+    if (!text || typeof showToast !== 'function') return;
+    const looksUserError = /認証|権限|失敗|期限切れ|通信|投稿|検索|取得|送信/.test(text);
+    showToast(looksUserError ? text : '予期しないエラーが発生しました。詳細はログを確認してください。', 'error', 4200);
   };
 })();
+
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
 
 // =============================================
 //  初期化
@@ -320,6 +1141,13 @@ async function init() {
   installLoginConsoleCapture();
   initViewportListener();
   applySavedTheme();
+  setToastDurationMs(getToastDurationMs());
+  setImageAutoloadMode(getImageAutoloadMode());
+  setFontScaleMode(getFontScaleMode());
+  setReadingWidthMode(getReadingWidthMode());
+  setPostDensityMode(getPostDensityMode());
+  setShortcutsEnabled(getShortcutsEnabled());
+  setShortcutPrefs(getShortcutPrefs());
   const sess = loadSession();
   applySavedUiPrefs();
   syncExperienceUi();
@@ -333,24 +1161,51 @@ async function init() {
     switchTab(bootTab);
     await loadTab(bootTab);
     startNotifPoll();
+    resetInactivityTimer();
+    flushQueuedPosts();
   } else {
     showLogin();
     const reason = typeof takeReloginReason === 'function' ? takeReloginReason() : '';
-    if (reason === 'storage_version_mismatch') {
-      const errEl = document.getElementById('login-error');
-      if (errEl) {
-        errEl.textContent = 'バージョン不一致を検出したため、安全のため再ログインしてください。';
-        errEl.classList.remove('hidden');
-      }
+    const errEl = document.getElementById('login-error');
+    if (errEl && reason === 'storage_version_mismatch') {
+      errEl.textContent = 'バージョン不一致を検出したため、安全のため再ログインしてください。';
+      errEl.classList.remove('hidden');
+      openModalById('migration-wizard-modal', '#migration-wizard-close');
+    }
+    if (errEl && reason === 'session_expired_policy') {
+      errEl.textContent = 'セッション保存期限（7日）を超えたため再ログインが必要です。';
+      errEl.classList.remove('hidden');
+    }
+    if (errEl && reason === 'session_expired') {
+      errEl.textContent = 'セッション期限切れです。作業内容はローカルに保持されています。再ログインしてください。';
+      errEl.classList.remove('hidden');
     }
   }
   renderSearchHistory();
   renderComposeTemplates();
+  renderComposeHashtagSuggestions();
   syncPinnedUi();
+  syncSubTabsAria();
+  syncIconButtonAriaLabels();
+  syncExplicitAriaLabels();
   applyQuickPostWidth(getQuickPostWidth());
   applyFeedWidthPrefs();
+  syncNotifPollUi();
+  syncToastDurationUi();
+  syncStartupTabModeUi();
+  syncInactivityTimeoutUi();
+  syncThemeUi();
+  syncFontScaleUi();
+  syncReadingWidthUi();
+  syncPostDensityUi();
+  syncShortcutsEnabledUi();
+  syncImageAutoloadUi();
+  syncShortcutPrefsUi();
+  syncReplyTemplateUi();
   initMainWidthResizer();
+  initLoadMoreObserver();
   bindAll();
+  registerServiceWorker();
 }
 
 function getUiPrefs() {
@@ -361,7 +1216,7 @@ function getUiPrefs() {
     return {
       tab: typeof raw.tab === 'string' ? raw.tab : base.tab,
       homeSubTab: ['discover', 'following', 'pinned'].includes(raw.homeSubTab) ? raw.homeSubTab : 'following',
-      notifSubTab: raw.notifSubTab === 'mention' || raw.notifSubTab === 'unread' ? raw.notifSubTab : 'all',
+      notifSubTab: ['all', 'mention', 'unread', 'nonfollowers'].includes(raw.notifSubTab) ? raw.notifSubTab : 'all',
       searchTab: ['posts', 'users', 'latest', 'trends'].includes(raw.searchTab) ? raw.searchTab : 'posts',
       profileSubTab: ['posts', 'replies', 'media', 'likes'].includes(raw.profileSubTab) ? raw.profileSubTab : 'posts',
     };
@@ -439,6 +1294,7 @@ function incActivity(key) {
 }
 
 function getAdaptiveBootTab() {
+  if (getStartupTabMode() === 'manual') return getBootTab();
   const exp = getExperiencePrefs();
   if (!exp.personalize) return getBootTab();
   const st = getActivityStats();
@@ -456,66 +1312,92 @@ function getAdaptiveBootTab() {
 }
 
 function getPinnedHomeQuery() {
-  const raw = String(safeStorageGet(HOME_PINNED_QUERY_KEY) || '').trim();
-  return raw || 'Bluesky 日本';
+  const list = getPinnedHomeQueries();
+  return list[0] || 'Bluesky 日本';
 }
 
-function setPinnedHomeQuery(query) {
-  const q = String(query || '').trim().slice(0, 80);
-  safeStorageSet(HOME_PINNED_QUERY_KEY, q || 'Bluesky 日本');
+function getPinnedHomeQueries() {
+  try {
+    const arr = JSON.parse(safeStorageGet(PINNED_QUERIES_KEY) || '[]');
+    if (Array.isArray(arr) && arr.length) {
+      return arr
+        .map(v => String(v || '').trim())
+        .filter(Boolean)
+        .slice(0, 5);
+    }
+  } catch {}
+  const legacy = String(safeStorageGet(HOME_PINNED_QUERY_KEY) || '').trim();
+  return [legacy || 'Bluesky 日本'];
+}
+
+function setPinnedHomeQueries(queries) {
+  const list = (Array.isArray(queries) ? queries : [])
+    .map(v => String(v || '').trim().slice(0, 80))
+    .filter(Boolean)
+    .slice(0, 5);
+  const fallback = list.length ? list : ['Bluesky 日本'];
+  safeStorageSet(PINNED_QUERIES_KEY, JSON.stringify(fallback));
+  safeStorageSet(HOME_PINNED_QUERY_KEY, fallback[0]);
   syncPinnedUi();
 }
 
 function syncPinnedUi() {
-  const q = getPinnedHomeQuery();
+  const list = getPinnedHomeQueries();
+  const q = list[0] || 'Bluesky 日本';
   const btn = document.getElementById('home-pinned-subtab');
   const edit = document.getElementById('home-pinned-edit');
-  if (btn) btn.title = `固定検索: ${q}`;
+  if (btn) btn.title = `固定検索: ${list.join(', ')}`;
   if (edit) edit.title = `固定語を変更（現在: ${q}）`;
 }
 
 function openPinnedModal() {
-  const modal = document.getElementById('home-pinned-modal');
   const inp = document.getElementById('home-pinned-input');
   const st = document.getElementById('home-pinned-status');
-  if (inp) inp.value = getPinnedHomeQuery();
-  if (st) st.textContent = `現在: ${getPinnedHomeQuery()}`;
-  modal?.classList.remove('hidden');
+  const list = getPinnedHomeQueries();
+  if (inp) inp.value = list.join(', ');
+  if (st) {
+    const current = list.length > 0 ? list.join(' / ') : '（未設定）';
+    st.innerHTML = `<strong>現在の設定:</strong> ${escapeHtml(current)}<br><small>カンマ区切りで複数登録可能（最大5件、各80文字以内）</small>`;
+  }
+  openModalById('home-pinned-modal', '#home-pinned-input');
   inp?.focus();
   inp?.select();
 }
 
 function closePinnedModal() {
-  document.getElementById('home-pinned-modal')?.classList.add('hidden');
+  closeModalById('home-pinned-modal');
 }
 
 function savePinnedModal() {
   const inp = document.getElementById('home-pinned-input');
-  const q = String(inp?.value || '').trim();
-  if (!q) {
+  const list = String(inp?.value || '')
+    .split(',')
+    .map(v => v.trim())
+    .filter(Boolean)
+    .slice(0, 5);
+  if (!list.length) {
     document.getElementById('home-pinned-status').textContent = '固定語を入力してください';
     return;
   }
-  setPinnedHomeQuery(q);
+  setPinnedHomeQueries(list);
   closePinnedModal();
   if (S.homeSubTab === 'pinned') {
     document.getElementById('home-feed').innerHTML = '';
     loadHome();
   }
-  showToast('固定検索ワードを保存しました', 'success');
+  showToast('固定検索ワードを保存しました（最大5件）', 'success');
 }
 
 function openSearchImeModal() {
-  const modal = document.getElementById('search-ime-modal');
   const ta = document.getElementById('search-ime-text');
   const inp = document.getElementById('search-input');
   if (ta) ta.value = String(inp?.value || '');
-  modal?.classList.remove('hidden');
+  openModalById('search-ime-modal', '#search-ime-text');
   ta?.focus();
 }
 
 function closeSearchImeModal() {
-  document.getElementById('search-ime-modal')?.classList.add('hidden');
+  closeModalById('search-ime-modal');
 }
 
 function applySearchImeInput() {
@@ -535,6 +1417,16 @@ function applyJapanSearchHint(term) {
   if (!exp.japanMode || !q) return q;
   if (/\blang\s*:/i.test(q)) return q;
   return `${q} lang:ja`;
+}
+
+function linkifyPlainText(text) {
+  const src = String(text || '');
+  const escaped = escapeHtml(src);
+  return escaped.replace(/(https?:\/\/[^\s<]+)/g, m => {
+    const safe = sanitizeHttpUrl(m);
+    if (!safe) return m;
+    return `<a href="${escapeHtml(safe)}" target="_blank" rel="noopener noreferrer">${escapeHtml(m)}</a>`;
+  });
 }
 
 function isLikelyJapaneseTag(tag) {
@@ -576,8 +1468,55 @@ function applyComposeTemplate(text) {
   if (!val) return;
   ta.value = ta.value ? `${ta.value}\n${val}`.slice(0, 320) : val.slice(0, 320);
   updateCharCount();
+  renderComposeHashtagSuggestions();
   cacheComposeState();
   ta.focus();
+}
+
+function buildComposeHashtagSuggestions(text) {
+  const t = String(text || '').toLowerCase();
+  const map = [
+    ['ai', '#AI'],
+    ['開発', '#開発メモ'],
+    ['javascript', '#JavaScript'],
+    ['python', '#Python'],
+    ['bluesky', '#BlueskyJP'],
+    ['ニュース', '#ニュース'],
+    ['日記', '#日記'],
+    ['勉強', '#学習記録'],
+  ];
+  const suggestions = map.filter(([k]) => t.includes(k)).map(([, tag]) => tag);
+  return [...new Set(suggestions)].slice(0, 4);
+}
+
+function renderComposeHashtagSuggestions() {
+  const host = document.getElementById('compose-hashtag-suggestions');
+  const ta = document.getElementById('compose-text');
+  if (!host || !ta) return;
+  const tags = buildComposeHashtagSuggestions(ta.value);
+  if (!tags.length) {
+    host.innerHTML = '';
+    return;
+  }
+  host.innerHTML = tags.map(tag => `<button class="search-chip smart" type="button" data-hashtag-insert="${escapeHtml(tag)}">候補: ${escapeHtml(tag)}</button>`).join('');
+}
+
+function getPerfMetrics() {
+  try {
+    const raw = JSON.parse(safeStorageGet(PERF_METRICS_KEY) || '{}');
+    return raw && typeof raw === 'object' ? raw : {};
+  } catch {
+    return {};
+  }
+}
+
+function trackPerfMetric(name, ms) {
+  const metrics = getPerfMetrics();
+  const key = String(name || 'unknown');
+  const val = Math.max(0, Math.round(Number(ms) || 0));
+  const curr = Array.isArray(metrics[key]) ? metrics[key] : [];
+  metrics[key] = [...curr.slice(-29), { at: Date.now(), ms: val }];
+  safeStorageSet(PERF_METRICS_KEY, JSON.stringify(metrics));
 }
 
 function detectTrendCategory(tag) {
@@ -636,6 +1575,7 @@ function syncSubTabUi() {
   document.querySelectorAll('#tab-notifications .sub-tab').forEach(b => b.classList.toggle('active', b.dataset.sub === S.notifSubTab));
   document.querySelectorAll('#tab-search .sub-tab').forEach(b => b.classList.toggle('active', b.dataset.sub === S.searchTab));
   document.querySelectorAll('#tab-profile .sub-tab').forEach(b => b.classList.toggle('active', b.dataset.sub === S.profileSubTab));
+  syncSubTabsAria();
 }
 
 function getBootTab() {
@@ -896,6 +1836,7 @@ function quickClearCompose() {
   if (!ta) return;
   ta.value = '';
   updateCharCount();
+  renderComposeHashtagSuggestions();
   cacheComposeState();
 }
 
@@ -1002,21 +1943,22 @@ function refreshRightStats() {
 function applyTheme(mode) {
   const html = document.documentElement;
   if (!html) return;
-  if (mode === 'dark') html.setAttribute('data-theme', 'dark');
-  else html.removeAttribute('data-theme');
-  safeStorageSet(THEME_KEY, mode);
+  const next = ['light', 'dark', 'ocean', 'forest'].includes(mode) ? mode : 'light';
+  if (next === 'light') html.removeAttribute('data-theme');
+  else html.setAttribute('data-theme', next);
+  safeStorageSet(THEME_KEY, next);
   const btn = document.getElementById('theme-toggle-btn');
-  if (btn) btn.textContent = mode === 'dark' ? 'ライトへ' : 'ダークへ';
+  if (btn) btn.textContent = next === 'dark' ? 'ライトへ' : 'ダークへ';
+  syncThemeUi();
 }
 
 function applySavedTheme() {
-  const saved = safeStorageGet(THEME_KEY) || 'light';
-  applyTheme(saved === 'dark' ? 'dark' : 'light');
+  applyTheme(getThemeMode());
 }
 
 function toggleThemeMode() {
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-  applyTheme(isDark ? 'light' : 'dark');
+  const mode = getThemeMode();
+  applyTheme(mode === 'dark' ? 'light' : 'dark');
 }
 
 async function loadMyProfile() {
@@ -1031,7 +1973,8 @@ async function loadMyProfile() {
     set('user-handle', `@${p.handle}`);
     set('prof-displayname', p.displayName || p.handle);
     set('prof-handle', `@${p.handle}`);
-    set('prof-desc', p.description || '');
+    const desc = document.getElementById('prof-desc');
+    if (desc) desc.innerHTML = linkifyPlainText(p.description || '');
     set('prof-following', p.followsCount || 0);
     set('prof-followers', p.followersCount || 0);
     set('prof-posts', p.postsCount || 0);
@@ -1070,12 +2013,17 @@ function switchTab(tab) {
   if (['home', 'search', 'dm', 'notifications', 'profile'].includes(tab)) incActivity(tab);
   saveUiPrefs();
   document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.mobile-nav-item').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.tab-section').forEach(s => {
     const isActive = s.id === `tab-${tab}`;
     s.classList.toggle('active', isActive);
     s.classList.toggle('hidden', !isActive);
   });
-  if (tab === 'notifications') { document.getElementById('notif-badge').classList.add('hidden'); apiUpdateNotificationSeen(); }
+  if (tab === 'notifications') {
+    document.getElementById('notif-badge').classList.add('hidden');
+    updateNotifLiveRegion(0);
+    apiUpdateNotificationSeen();
+  }
   if (tab === 'search') {
     updateSearchClearButton();
     renderSearchHistory();
@@ -1084,11 +2032,57 @@ function switchTab(tab) {
   }
   const feedIds = { home:'home-feed', notifications:'notif-feed', search:'search-feed', dm:'dm-list', lists:'lists-feed', profile:'profile-feed' };
   const feedId = feedIds[tab];
-  if (feedId && document.getElementById(feedId)?.childElementCount === 0) loadTab(tab);
+  const feedEl = feedId ? document.getElementById(feedId) : null;
+  if (feedEl && feedEl.childElementCount === 0) {
+    loadTab(tab);
+  } else if (tab === 'home') {
+    refreshHomeDiff();
+  } else if (tab === 'notifications') {
+    refreshNotifDiff();
+  }
+}
+
+async function refreshHomeDiff() {
+  const feed = document.getElementById('home-feed');
+  if (!feed || !feed.children.length) return;
+  try {
+    let data;
+    if (S.homeSubTab === 'discover') data = await withAuth(() => apiGetDiscover(null));
+    else if (S.homeSubTab === 'pinned') {
+      const q = applyJapanSearchHint(getPinnedHomeQueries().map(v => `(${v})`).join(' OR ') || getPinnedHomeQuery());
+      data = await withAuth(() => apiSearchPosts(q, null, 'latest'));
+    } else data = await withAuth(() => apiGetTimeline(null));
+    const rows = normalizeFeedRows(S.homeSubTab === 'pinned' ? (data.posts || []).map(p => ({ post: p })) : (data.feed || []));
+    const existingUris = new Set([...feed.querySelectorAll('.post-card[data-uri]')].map(el => el.dataset.uri));
+    const newcomers = rows.filter(r => !existingUris.has(String(r.post?.uri || ''))).slice(0, 5);
+    if (!newcomers.length) return;
+    const myDid = S.session?.did;
+    const frag = document.createDocumentFragment();
+    newcomers.reverse().forEach(item => {
+      const box = document.createElement('div');
+      box.innerHTML = renderPostCard(item, myDid);
+      while (box.lastChild) frag.insertBefore(box.lastChild, frag.firstChild);
+    });
+    feed.insertBefore(frag, feed.firstChild);
+  } catch {}
+}
+
+async function refreshNotifDiff() {
+  if (S.tab !== 'notifications') return;
+  try {
+    const data = await withAuth(() => apiGetNotifications(null));
+    const latest = await enrichNotificationsWithSubjectPreview(data.notifications || []);
+    const existing = new Set((S.cachedNotifs || []).map(n => `${n.indexedAt}::${n.author?.did || ''}::${n.reason || ''}`));
+    const newcomers = latest.filter(n => !existing.has(`${n.indexedAt}::${n.author?.did || ''}::${n.reason || ''}`));
+    if (!newcomers.length) return;
+    S.cachedNotifs = [...newcomers, ...(S.cachedNotifs || [])];
+    renderNotifList();
+  } catch {}
 }
 
 async function loadTab(tab) {
   if (S.loading[tab]) return; S.loading[tab] = true;
+  const t0 = performance.now();
   try {
     if (tab === 'home')          await loadHome();
     else if (tab === 'notifications') await loadNotifications();
@@ -1097,8 +2091,11 @@ async function loadTab(tab) {
     else if (tab === 'lists')    await loadLists();
     else if (tab === 'dm')       await loadDM();
     else if (tab === 'settings') { /* 設定タブは静的HTML */ }
-  } catch(e) { showToast(e.message, 'error'); }
-  finally { S.loading[tab] = false; }
+  } catch(e) { showErrorToast(e, '読み込みに失敗しました。'); }
+  finally {
+    trackPerfMetric(`tab:${tab}`, performance.now() - t0);
+    S.loading[tab] = false;
+  }
 }
 
 async function reloadTab(tab) {
@@ -1114,26 +2111,49 @@ async function reloadTab(tab) {
 // =============================================
 async function loadHome() {
   const feed = document.getElementById('home-feed');
-  feed.innerHTML = renderSpinner();
+  renderHomeTrendSidecard();
+  feed.innerHTML = renderFeedSkeleton(4);
   let data;
-  const key = cacheKey(['home', S.homeSubTab, 'first', getPinnedHomeQuery()]);
+  const pinned = getPinnedHomeQueries();
+  const mergedPinnedQuery = pinned.map(q => `(${q})`).join(' OR ');
+  const key = cacheKey(['home', S.homeSubTab, 'first', mergedPinnedQuery]);
   if (S.homeSubTab === 'discover') data = await fetchWithLocalCache(key, 20000, () => withAuth(() => apiGetDiscover(null)));
   else if (S.homeSubTab === 'pinned') {
-    const q = applyJapanSearchHint(getPinnedHomeQuery());
+    const q = applyJapanSearchHint(mergedPinnedQuery || getPinnedHomeQuery());
     data = await fetchWithLocalCache(key, 20000, () => withAuth(() => apiSearchPosts(q, null, 'latest')));
   }
   else data = await fetchWithLocalCache(key, 20000, () => withAuth(() => apiGetTimeline(null)));
   S.cursors['home'] = data.cursor || null;
   feed.innerHTML = '';
-  const rows = S.homeSubTab === 'pinned' ? (data.posts || []).map(p => ({ post: p })) : (data.feed || []);
+  const rows = normalizeFeedRows(S.homeSubTab === 'pinned' ? (data.posts || []).map(p => ({ post: p })) : (data.feed || []));
   if (!rows.length) {
     const msg = S.homeSubTab === 'pinned' ? `固定検索「${escapeHtml(getPinnedHomeQuery())}」に一致する投稿がありません` : 'タイムラインに投稿がありません';
-    feed.innerHTML = renderEmpty(msg);
+    feed.innerHTML = renderEmpty(msg, 'home', { action: 'search', label: '検索する' });
     return;
   }
   const myDid = S.session?.did;
   rows.forEach(item => appendCards(feed, renderPostCard(item, myDid)));
   if (data.cursor) addLoadMoreBtn(feed, 'home');
+}
+
+async function renderHomeTrendSidecard() {
+  const host = document.getElementById('home-trend-sidecard');
+  if (!host) return;
+  host.innerHTML = '<div class="right-mini-status">話題を読み込み中...</div>';
+  try {
+    const data = await withAuth(() => apiGetTrendingTopics(5));
+    const topics = (data?.topics || data?.trends || []).slice(0, 5);
+    if (!topics.length) {
+      host.innerHTML = '<div class="right-mini-status">話題はありません</div>';
+      return;
+    }
+    host.innerHTML = topics.map(t => {
+      const raw = String(t.topic || t.name || t.tag || '').replace(/^#?/, '#');
+      return `<button class="search-chip" type="button" data-trend-tag="${escapeHtml(raw.replace(/^#/, ''))}">${escapeHtml(raw)}</button>`;
+    }).join('');
+  } catch {
+    host.innerHTML = '<div class="right-mini-status">話題の取得に失敗しました</div>';
+  }
 }
 
 function switchHomeSubTab(sub) {
@@ -1151,16 +2171,64 @@ async function loadNotifications() {
   const feed = document.getElementById('notif-feed');
   feed.innerHTML = renderSpinner();
   const data = await fetchWithLocalCache(cacheKey(['notifications', 'first']), 12000, () => withAuth(() => apiGetNotifications(null)));
-  S.cachedNotifs = data.notifications || [];
+  S.cachedNotifs = await enrichNotificationsWithSubjectPreview(data.notifications || []);
   S.cursors['notifications'] = data.cursor || null;
   renderNotifList();
 }
 
+function getNotifSubjectUri(n) {
+  return String(n?.reasonSubject || n?.record?.subject?.uri || n?.record?.reply?.parent?.uri || '').trim();
+}
+
+async function fetchNotifSubjectText(uri) {
+  if (!uri) return '';
+  if (NOTIF_SUBJECT_CACHE.has(uri)) return NOTIF_SUBJECT_CACHE.get(uri);
+  try {
+    const data = await withAuth(() => apiGetPostThread(uri, 0));
+    const text = String(data?.thread?.post?.record?.text || '').trim();
+    const preview = text.slice(0, 120);
+    NOTIF_SUBJECT_CACHE.set(uri, preview);
+    return preview;
+  } catch {
+    NOTIF_SUBJECT_CACHE.set(uri, '');
+    return '';
+  }
+}
+
+async function enrichNotificationsWithSubjectPreview(list) {
+  const notifications = Array.isArray(list) ? list : [];
+  const targetUris = [...new Set(notifications.map(getNotifSubjectUri).filter(Boolean))];
+  if (!targetUris.length) return notifications;
+  await Promise.all(targetUris.map(uri => fetchNotifSubjectText(uri)));
+  return notifications.map(n => {
+    const uri = getNotifSubjectUri(n);
+    if (!uri) return n;
+    return { ...n, subjectTextPreview: NOTIF_SUBJECT_CACHE.get(uri) || '' };
+  });
+}
+
 function switchNotifSubTab(sub) {
   S.notifSubTab = sub;
+  S.notifFilterMode = sub === 'nonfollowers' ? 'nonfollowers' : 'all';
   saveUiPrefs();
   document.querySelectorAll('#tab-notifications .sub-tab').forEach(b => b.classList.toggle('active', b.dataset.sub === sub));
   renderNotifList();
+}
+
+function markNotificationsAsReadLocal({ reason = '', subject = '', indexedAt = '', authorDid = '' } = {}) {
+  const r = String(reason || '').trim();
+  const s = String(subject || '').trim();
+  const i = String(indexedAt || '').trim();
+  const a = String(authorDid || '').trim();
+  S.cachedNotifs = (S.cachedNotifs || []).map(n => {
+    const nr = String(n.reason || '').trim();
+    const ns = getNotifSubjectUri(n);
+    const ni = String(n.indexedAt || '').trim();
+    const na = String(n.author?.did || '').trim();
+    const byGroup = s ? (nr === r && ns === s) : false;
+    const bySingle = !s && nr === r && ni === i && na === a;
+    return byGroup || bySingle ? { ...n, isRead: true } : n;
+  });
 }
 
 function renderNotifList() {
@@ -1169,9 +2237,56 @@ function renderNotifList() {
   let list = S.cachedNotifs;
   if (S.notifSubTab === 'unread') list = list.filter(n => !n.isRead);
   if (S.notifSubTab === 'mention') list = list.filter(n => n.reason === 'mention' || n.reason === 'reply');
-  if (!list.length) { feed.innerHTML = renderEmpty('通知はありません'); return; }
+  if (S.notifSubTab === 'nonfollowers') {
+    list = list.filter(n => {
+      const actors = Array.isArray(n.groupedAuthors) && n.groupedAuthors.length ? n.groupedAuthors : [n.author].filter(Boolean);
+      return actors.some(a => !a?.viewer?.following);
+    });
+  }
+  list = groupNotificationsByReasonAndSubject(list);
+  if (!list.length) { feed.innerHTML = renderEmpty('通知はありません', 'notifications', { action: 'home', label: 'ホームを見る' }); return; }
   list.forEach(n => appendCards(feed, renderNotifCard(n)));
   if (S.cursors['notifications']) addLoadMoreBtn(feed, 'notifications');
+}
+
+function groupNotificationsByReasonAndSubject(list) {
+  const notifications = Array.isArray(list) ? list : [];
+  const grouped = [];
+  const map = new Map();
+
+  notifications.forEach(n => {
+    const reason = String(n?.reason || '');
+    const subjectUri = getNotifSubjectUri(n);
+    const canGroup = !!subjectUri;
+    const key = canGroup ? `${reason}::${subjectUri}` : `single::${String(n?.indexedAt || '')}::${String(n?.author?.did || '')}`;
+
+    if (!canGroup || !map.has(key)) {
+      const seed = {
+        ...n,
+        groupedCount: 1,
+        groupedAuthors: n?.author ? [n.author] : [],
+      };
+      if (canGroup) map.set(key, seed);
+      grouped.push(seed);
+      return;
+    }
+
+    const acc = map.get(key);
+    acc.groupedCount += 1;
+    acc.isRead = !!(acc.isRead && n.isRead);
+    const accTime = new Date(acc.indexedAt || 0).getTime();
+    const nTime = new Date(n.indexedAt || 0).getTime();
+    if (nTime > accTime) {
+      acc.indexedAt = n.indexedAt;
+      if (n.record) acc.record = n.record;
+    }
+
+    const did = n?.author?.did;
+    if (did && !acc.groupedAuthors.some(a => a?.did === did)) acc.groupedAuthors.push(n.author);
+  });
+
+  grouped.sort((a, b) => new Date(b.indexedAt || 0).getTime() - new Date(a.indexedAt || 0).getTime());
+  return grouped;
 }
 
 // =============================================
@@ -1189,15 +2304,29 @@ async function loadProfile() {
   });
   S.cursors['profile'] = data.cursor || null;
   feed.innerHTML = '';
-  const rows = data.feed || [];
+  const rows = normalizeFeedRows(data.feed || []);
   if (!rows.length) {
     const msg = tab === 'likes' ? 'いいねがありません' : tab === 'media' ? 'メディア投稿がありません' : tab === 'replies' ? '返信投稿がありません' : '投稿がありません';
-    feed.innerHTML = renderEmpty(msg);
+    feed.innerHTML = renderEmpty(msg, 'profile', { action: 'home', label: 'ホームを見る' });
     return;
   }
   const myDid = S.session?.did;
   rows.forEach(item => appendCards(feed, renderPostCard(item, myDid)));
   if (data.cursor) addLoadMoreBtn(feed, 'profile');
+  renderProfileRecentSearches();
+}
+
+function renderProfileRecentSearches() {
+  const host = document.getElementById('profile-recent-searches');
+  if (!host) return;
+  const list = getSearchHistory();
+  if (!list.length) {
+    host.innerHTML = '<div class="right-mini-status">最近の検索はありません</div>';
+    return;
+  }
+  host.innerHTML = list.slice(0, 6).map(q =>
+    `<button class="search-chip" type="button" data-search-item="${escapeHtml(q)}">${escapeHtml(q)}</button>`
+  ).join('');
 }
 
 function switchProfileSubTab(sub) {
@@ -1231,7 +2360,7 @@ async function openUserProfile(handleOrDid) {
       feedEl.innerHTML = '';
       if (!data.feed?.length) { feedEl.innerHTML = renderEmpty('投稿がありません'); return; }
       const myDid = S.session?.did;
-      data.feed.forEach(item => appendCards(feedEl, renderPostCard(item, myDid)));
+      normalizeFeedRows(data.feed || []).forEach(item => appendCards(feedEl, renderPostCard(item, myDid)));
     }
   } catch(e) {
     content.innerHTML = renderEmpty(`プロフィールの取得に失敗しました: ${e.message}`);
@@ -1250,23 +2379,22 @@ async function startDmWithDid(did) {
     await openConvo(convoId);
     showToast('DMを開始しました', 'success');
   } catch (e) {
-    showToast(e.message || 'DM開始に失敗しました', 'error');
+    showErrorToast(e, 'DM開始に失敗しました');
   }
 }
 
 function openDmStartModal() {
-  const modal = document.getElementById('dm-start-modal');
   const input = document.getElementById('dm-start-handle');
   const status = document.getElementById('dm-start-status');
   S.dmStartDid = null;
   if (status) status.textContent = '';
   if (input) input.value = '';
-  modal?.classList.remove('hidden');
+  openModalById('dm-start-modal', '#dm-start-handle');
   input?.focus();
 }
 
 function closeDmStartModal() {
-  document.getElementById('dm-start-modal')?.classList.add('hidden');
+  closeModalById('dm-start-modal');
 }
 
 async function resolveDmStartHandle() {
@@ -1287,7 +2415,12 @@ async function resolveDmStartHandle() {
     return null;
   }
   if (!canStartDmWithProfile(profile)) {
-    if (status) status.textContent = 'このユーザーは新規DMに対応していません';
+    if (status) {
+      const policy = getDmIncomingPolicy(profile);
+      if (policy === 'following') status.textContent = 'このユーザーは「フォロワーのみDM可」です。相手にフォローされると開始できます。';
+      else if (policy === 'mutuals') status.textContent = 'このユーザーは「相互フォローのみDM可」です。双方フォロー後に開始できます。';
+      else status.textContent = 'このユーザーは新規DMに対応していません';
+    }
     return null;
   }
   S.dmStartDid = profile.did;
@@ -1322,19 +2455,31 @@ async function toggleReplies(uri, containerEl, btn) {
     const data = await withAuth(() => apiGetPostThread(uri, 6));
     const thread = data.thread;
     const myDid = S.session?.did;
+    const topLevelChunkSize = 3;
     containerEl.innerHTML = '';
 
     if (!thread.replies?.length) {
       containerEl.innerHTML = '<div class="no-replies">返信はありません</div>';
     } else {
-      thread.replies.forEach(reply => {
+      const visibleReplies = thread.replies.slice(0, topLevelChunkSize);
+      const restReplies = thread.replies.slice(topLevelChunkSize);
+      visibleReplies.forEach(reply => {
         appendCards(containerEl, renderThreadNode(reply, myDid, 1));
       });
+      if (restReplies.length) {
+        const moreContainer = document.createElement('div');
+        moreContainer.className = 'more-replies-container';
+        restReplies.forEach(reply => {
+          appendCards(moreContainer, `<div class="more-reply-item hidden">${renderThreadNode(reply, myDid, 1)}</div>`);
+        });
+        containerEl.appendChild(moreContainer);
+        appendCards(containerEl, `<div class="thread-more"><button class="show-more-replies-btn" data-count="${restReplies.length}" data-step="${topLevelChunkSize}">他 ${restReplies.length} 件の返信を表示</button></div>`);
+      }
     }
     containerEl.classList.remove('hidden');
     btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>`;
   } catch(e) {
-    showToast(e.message, 'error');
+    showErrorToast(e, '返信の読み込みに失敗しました。');
     btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`;
   }
 }
@@ -1384,20 +2529,8 @@ async function loadDM() {
   list.innerHTML = renderSpinner();
   try {
     const data = await withAuth(() => apiGetConversations(null));
-    list.innerHTML = '';
-    if (!data.convos?.length) { list.innerHTML = renderEmpty('DMはありません'); return; }
-    data.convos.forEach(c => {
-      const other = (c.members||[]).find(m => m.did !== S.session?.did);
-      if (!other) return;
-      appendCards(list, `<div class="dm-convo-card" data-convo-id="${escapeHtml(c.id)}">
-        <img class="dm-avatar" src="${escapeHtml(other.avatar||'')}" alt="" onerror="this.src=''"/>
-        <div class="dm-info">
-          <div class="dm-name">${escapeHtml(other.displayName||other.handle)}</div>
-          <div class="dm-preview">${c.lastMessage?.text ? escapeHtml(c.lastMessage.text.slice(0,40)) : ''}</div>
-        </div>
-        ${(c.unreadCount||0)>0 ? `<span class="dm-badge">${c.unreadCount}</span>` : ''}
-      </div>`);
-    });
+    S.dmConvos = Array.isArray(data.convos) ? data.convos : [];
+    renderDmConversationList();
   } catch(e) {
     list.innerHTML = `<div class="empty-state">
       <div class="empty-icon">💬</div>
@@ -1407,11 +2540,56 @@ async function loadDM() {
   }
 }
 
+function renderDmConversationList() {
+  const list = document.getElementById('dm-list');
+  if (!list) return;
+  const readMap = getDmReadState();
+  const term = String(document.getElementById('dm-search-input')?.value || '').trim().toLowerCase();
+  list.innerHTML = '';
+  if (!S.dmConvos.length) {
+    list.innerHTML = renderEmpty('DMはありません', 'dm');
+    return;
+  }
+  const filtered = S.dmConvos.filter(c => {
+    if (!term) return true;
+    const other = (c.members || []).find(m => m.did !== S.session?.did) || {};
+    const source = [
+      String(other.displayName || ''),
+      String(other.handle || ''),
+      String(c.lastMessage?.text || ''),
+    ].join(' ').toLowerCase();
+    return source.includes(term);
+  });
+  if (!filtered.length) {
+    list.innerHTML = renderEmpty('条件に一致するDMがありません', 'dm');
+    return;
+  }
+  filtered.forEach(c => {
+      const other = (c.members||[]).find(m => m.did !== S.session?.did);
+      if (!other) return;
+      const localRead = readMap[String(c.id)] === true;
+      const unreadCount = Number(c.unreadCount || 0);
+      const effectiveUnread = localRead ? 0 : unreadCount;
+      appendCards(list, `<div class="dm-convo-card" data-convo-id="${escapeHtml(c.id)}">
+        <img class="dm-avatar" src="${escapeHtml(other.avatar||'')}" alt="" onerror="this.src=''"/>
+        <div class="dm-info">
+          <div class="dm-name">${escapeHtml(other.displayName||other.handle)}</div>
+          <div class="dm-preview">${c.lastMessage?.text ? escapeHtml(c.lastMessage.text.slice(0,40)) : ''}</div>
+        </div>
+        ${(effectiveUnread)>0 ? `<span class="dm-badge">${effectiveUnread}</span>` : ''}
+        <button class="btn-sm" type="button" data-dm-toggle-read="${escapeHtml(c.id)}">${effectiveUnread > 0 ? '既読にする' : '未読にする'}</button>
+      </div>`);
+    });
+}
+
 async function openConvo(convoId) {
   S.activeConvoId = convoId;
+  setDmReadState(convoId, true);
+  renderDmConversationList();
   document.getElementById('dm-chat-panel').classList.remove('hidden');
   const msgs = document.getElementById('dm-messages');
   msgs.innerHTML = renderSpinner();
+  const t0 = performance.now();
   try {
     const data = await withAuth(() => apiGetMessages(convoId, null));
     const list = (data.messages||[]).reverse();
@@ -1424,6 +2602,7 @@ async function openConvo(convoId) {
       </div>`);
     });
     msgs.scrollTop = 9999;
+    trackPerfMetric('dm:open', performance.now() - t0);
   } catch(e) { msgs.innerHTML = renderEmpty(e.message); }
 }
 
@@ -1431,17 +2610,64 @@ async function sendDM() {
   const inp = document.getElementById('dm-input');
   const text = inp.value.trim();
   if (!text || !S.activeConvoId) return;
+  if (hasSensitiveLeakPattern(text)) {
+    const ok = window.confirm('秘密情報らしき文字列を検出しました。送信を続行しますか？');
+    if (!ok) return;
+  }
   inp.value = '';
   try { await withAuth(() => apiSendMessage(S.activeConvoId, text)); incActivity('dm'); await openConvo(S.activeConvoId); }
-  catch(e) { showToast(e.message, 'error'); }
+  catch(e) { showErrorToast(e, 'DM送信に失敗しました。'); }
+}
+
+function hasSensitiveLeakPattern(text) {
+  const src = String(text || '');
+  const rules = [
+    /[A-Za-z0-9_\-]{4,}-[A-Za-z0-9_\-]{4,}-[A-Za-z0-9_\-]{4,}-[A-Za-z0-9_\-]{4,}/,
+    /bearer\s+[A-Za-z0-9._\-]+/i,
+    /(api[-_]?key|secret|token|password)\s*[:=]\s*\S+/i,
+  ];
+  return rules.some(re => re.test(src));
+}
+
+function toggleDmReadStateById(convoId) {
+  const id = String(convoId || '').trim();
+  if (!id) return;
+  const convo = S.dmConvos.find(c => String(c.id) === id);
+  const currentUnread = Number(convo?.unreadCount || 0);
+  const map = getDmReadState();
+  const currentlyRead = map[id] === true || currentUnread === 0;
+  setDmReadState(id, !currentlyRead);
+  renderDmConversationList();
+}
+
+function handleDmImageScaffold() {
+  showToast('DM画像送信は準備中です。まずはテキスト送信をご利用ください。', 'info', 2600);
 }
 
 // =============================================
 //  検索
 // =============================================
 let searchTimer = null;
+let searchIdleHandle = null;
+
+function runWhenIdle(fn, timeout = 220) {
+  if (typeof window.requestIdleCallback === 'function') {
+    searchIdleHandle = window.requestIdleCallback(fn, { timeout });
+  } else {
+    searchIdleHandle = setTimeout(fn, Math.min(timeout, 180));
+  }
+}
+
+function cancelIdleSearch() {
+  if (!searchIdleHandle) return;
+  if (typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(searchIdleHandle);
+  else clearTimeout(searchIdleHandle);
+  searchIdleHandle = null;
+}
+
 function handleSearchInput(q) {
   clearTimeout(searchTimer);
+  cancelIdleSearch();
   updateSearchClearButton();
   if (!q.trim()) {
     document.getElementById('search-feed').innerHTML = '';
@@ -1449,7 +2675,9 @@ function handleSearchInput(q) {
     return;
   }
   renderSearchHistory();
-  searchTimer = setTimeout(() => execSearch(q.trim()), 500);
+  searchTimer = setTimeout(() => {
+    runWhenIdle(() => execSearch(q.trim()), 300);
+  }, 360);
 }
 
 function switchSearchTab(sub) {
@@ -1468,26 +2696,29 @@ function switchSearchTab(sub) {
 async function execSearch(q) {
   const term = String(q || '').trim();
   if (!term && S.searchTab !== 'trends') return;
+  if (SEARCH_ABORT_CONTROLLER) SEARCH_ABORT_CONTROLLER.abort();
+  SEARCH_ABORT_CONTROLLER = new AbortController();
+  const signal = SEARCH_ABORT_CONTROLLER.signal;
   const feed = document.getElementById('search-feed');
   feed.innerHTML = renderSpinner();
   try {
     if (S.searchTab === 'posts' || S.searchTab === 'latest') {
       const sort = S.searchTab === 'latest' ? 'latest' : 'top';
       const query = applyJapanSearchHint(term);
-      const data = await fetchWithLocalCache(cacheKey(['search-posts', sort, query]), 20000, () => withAuth(() => apiSearchPosts(query, null, sort)));
+      const data = await withAuth(() => apiSearchPosts(query, null, sort, signal));
       feed.innerHTML = '';
-      if (!data.posts?.length) { feed.innerHTML = renderEmpty('投稿が見つかりません'); return; }
+      if (!data.posts?.length) { feed.innerHTML = renderEmpty('投稿が見つかりません', 'search', { action: 'search-latest', label: '最新で再検索' }); return; }
       const myDid = S.session?.did;
       data.posts.forEach(p => appendCards(feed, renderPostCard({ post: p }, myDid)));
       incActivity('search');
     } else if (S.searchTab === 'users') {
-      const data = await fetchWithLocalCache(cacheKey(['search-users', term]), 20000, () => withAuth(() => apiSearchActors(term, null)));
+      const data = await withAuth(() => apiSearchActors(term, null, signal));
       feed.innerHTML = '';
-      if (!data.actors?.length) { feed.innerHTML = renderEmpty('ユーザーが見つかりません'); return; }
+      if (!data.actors?.length) { feed.innerHTML = renderEmpty('ユーザーが見つかりません', 'search', { action: 'search-posts', label: '投稿を検索' }); return; }
       data.actors.forEach(a => appendCards(feed, renderUserCard(a, true, canStartDmWithProfile(a))));
       incActivity('search');
     } else if (S.searchTab === 'trends') {
-      const data = await fetchWithLocalCache(cacheKey(['trends', 'base']), 20000, () => withAuth(() => apiGetTrendingTopics(30)));
+      const data = await withAuth(() => apiGetTrendingTopics(30, signal));
       const rawTopics = data?.topics || data?.trends || [];
       const exp = getExperiencePrefs();
       let topics = rawTopics;
@@ -1499,7 +2730,7 @@ async function execSearch(q) {
         topics = topics.filter(t => detectTrendCategory(t.topic || t.name || t.tag || '') === S.trendCategory);
       }
       feed.innerHTML = '';
-      if (!topics.length) { feed.innerHTML = renderEmpty('トレンドが見つかりません'); return; }
+      if (!topics.length) { feed.innerHTML = renderEmpty('トレンドが見つかりません', 'search', { action: 'trend-all', label: 'カテゴリを全て表示' }); return; }
       topics.forEach(t => {
         const tag = String(t.topic || t.name || t.tag || '').replace(/^#?/, '#');
         const count = Number(t.postCount || t.posts || 0);
@@ -1514,7 +2745,10 @@ async function execSearch(q) {
       });
     }
     if (term) saveSearchHistoryItem(term);
-  } catch(e) { feed.innerHTML = renderEmpty(e.message); }
+  } catch(e) {
+    if (e?.name === 'AbortError') return;
+    feed.innerHTML = renderEmpty(toUserErrorMessage(e, '検索に失敗しました'));
+  }
 }
 
 // =============================================
@@ -1526,6 +2760,28 @@ function updateCharCount() {
   const el = document.getElementById('char-count');
   el.textContent = r;
   el.className = 'char-count' + (r <= 20 ? ' warn' : '') + (r < 0 ? ' danger' : '');
+}
+
+function getReplyTemplate() {
+  const raw = String(safeStorageGet(REPLY_TEMPLATE_KEY) || 'everybody');
+  const allowed = ['everybody', 'following', 'followers', 'mentionedUsers', 'nobody'];
+  return allowed.includes(raw) ? raw : 'everybody';
+}
+
+function setReplyTemplate(value) {
+  const allowed = ['everybody', 'following', 'followers', 'mentionedUsers', 'nobody'];
+  const next = allowed.includes(String(value || '')) ? String(value) : 'everybody';
+  safeStorageSet(REPLY_TEMPLATE_KEY, next);
+  const mainSel = document.getElementById('reply-restriction');
+  const quickSel = document.getElementById('quick-post-restriction');
+  const tplSel = document.getElementById('reply-template-select');
+  if (mainSel) mainSel.value = next;
+  if (quickSel) quickSel.value = next;
+  if (tplSel) tplSel.value = next;
+}
+
+function syncReplyTemplateUi() {
+  setReplyTemplate(getReplyTemplate());
 }
 
 function handleImageSelect(e) {
@@ -1640,6 +2896,33 @@ function cancelReply() {
   document.getElementById('reply-ctx').classList.add('hidden');
 }
 
+function isOfflineLikeError(err) {
+  const msg = String(err?.message || '').toLowerCase();
+  return !navigator.onLine || /network|failed to fetch|fetch failed|timeout|timed out/.test(msg);
+}
+
+async function flushQueuedPosts() {
+  if (!S.session || !navigator.onLine) return;
+  const list = getPostQueue();
+  if (!list.length) return;
+  const remain = [];
+  for (const item of list) {
+    try {
+      await withAuth(() => apiPost(item.text || '', [], item.replyTarget || null, item.restriction || 'everybody'));
+    } catch (e) {
+      remain.push(item);
+      appLog('warn', 'queued post retry failed', e);
+    }
+  }
+  savePostQueue(remain);
+  if (remain.length !== list.length) {
+    showToast(`オフラインキュー ${list.length - remain.length} 件を送信しました`, 'success', 2200);
+    clearFetchCache('home::');
+    clearFetchCache('profile::');
+    if (S.tab === 'home') reloadTab('home');
+  }
+}
+
 async function handlePost() {
   const ta   = document.getElementById('compose-text');
   const text = ta.value.trim();
@@ -1654,13 +2937,26 @@ async function handlePost() {
     clearFetchCache('home::');
     clearFetchCache('profile::');
     incActivity('posts');
-    ta.value = ''; S.pendingImgs = []; renderPreviews(); cancelReply(); updateCharCount();
+    ta.value = ''; S.pendingImgs = []; renderPreviews(); cancelReply(); updateCharCount(); renderComposeHashtagSuggestions();
     clearComposeCache();
     showToast('投稿しました！', 'success');
     reloadTab('home');
     if (S.tab === 'profile') reloadTab('profile');
     refreshRightStats();
-  } catch(e) { showToast(e.message, 'error'); }
+  } catch(e) {
+    if (e?.code === 'IMAGE_UPLOAD_PARTIAL_FAILURE') {
+      const count = Array.isArray(e.failedUploads) ? e.failedUploads.length : 1;
+      showToast(`画像 ${count} 枚のアップロードに失敗しました。再試行してください。`, 'error');
+      return;
+    }
+    if (isOfflineLikeError(e)) {
+      enqueuePost({ text, restriction, replyTarget: S.replyTarget || null, source: 'compose' });
+      showToast('オフラインのため投稿をキューに保存しました。オンライン復帰後に自動送信します。', 'info', 2600);
+      return;
+    }
+    const backedUp = backupFailedPostToDraft(text, S.pendingImgs.length, '投稿失敗時の自動退避');
+    showErrorToast(e, backedUp ? '投稿に失敗したため、本文を下書きに保存しました。' : '投稿に失敗しました。');
+  }
   finally { setLoading(btn, false); }
 }
 
@@ -1674,10 +2970,9 @@ function updateQuickPostCount() {
 }
 
 function openQuickPostModal() {
-  const modal = document.getElementById('quick-post-modal');
   const ta = document.getElementById('quick-post-text');
-  if (!modal || !ta) return;
-  modal.classList.remove('hidden');
+  if (!ta) return;
+  openModalById('quick-post-modal', '#quick-post-text');
   ta.focus();
   renderQuickPreviews();
   renderImageAssist('quick');
@@ -1691,7 +2986,7 @@ function closeQuickPostModal() {
   renderQuickPreviews();
   renderImageAssist('quick');
   updateQuickPostCount();
-  document.getElementById('quick-post-modal')?.classList.add('hidden');
+  closeModalById('quick-post-modal');
 }
 
 async function handleQuickPost() {
@@ -1713,7 +3008,18 @@ async function handleQuickPost() {
     await reloadTab('home');
     refreshRightStats();
   } catch (e) {
-    showToast(e.message, 'error');
+    if (e?.code === 'IMAGE_UPLOAD_PARTIAL_FAILURE') {
+      const count = Array.isArray(e.failedUploads) ? e.failedUploads.length : 1;
+      showToast(`画像 ${count} 枚のアップロードに失敗しました。再試行してください。`, 'error');
+      return;
+    }
+    if (isOfflineLikeError(e)) {
+      enqueuePost({ text, restriction, replyTarget: null, source: 'quick' });
+      showToast('オフラインのため投稿をキューに保存しました。オンライン復帰後に自動送信します。', 'info', 2600);
+      return;
+    }
+    const backedUp = backupFailedPostToDraft(text, S.quickPendingImgs.length, 'クイック投稿失敗時の自動退避');
+    showErrorToast(e, backedUp ? '投稿に失敗したため、本文を下書きに保存しました。' : '投稿に失敗しました。');
   } finally {
     setLoading(btn, false);
   }
@@ -1839,7 +3145,10 @@ async function handleQuotePost(btn) {
     if (qc) qc.classList.add('hidden');
     if (ta) ta.value = '';
     reloadTab('home');
-  } catch(e) { showToast(e.message, 'error'); }
+  } catch(e) {
+    const backedUp = backupFailedPostToDraft(text, 0, `引用投稿失敗: ${quoteUri || ''}`);
+    showErrorToast(e, backedUp ? '引用投稿に失敗したため、本文を下書きに保存しました。' : '引用投稿に失敗しました。');
+  }
   finally { setLoading(btn, false); }
 }
 
@@ -1894,7 +3203,7 @@ async function handleLike(btn) {
     btn.classList.toggle('active', liked);
     if (svg) svg.setAttribute('fill', liked ? 'currentColor' : 'none');
     if (countEl) countEl.textContent = count;
-    showToast(e.message, 'error');
+    showErrorToast(e, 'いいね処理に失敗しました。');
   }
 }
 
@@ -1911,7 +3220,7 @@ async function handleRepost(btn) {
   } catch(e) {
     btn.classList.toggle('active', reposted);
     if (countEl) countEl.textContent = count;
-    showToast(e.message, 'error');
+    showErrorToast(e, 'リポスト処理に失敗しました。');
   }
 }
 
@@ -1922,14 +3231,14 @@ async function handleFollowToggle(btn) {
   try {
     if (following) { await withAuth(() => apiUnfollow(followUri)); btn.classList.remove('following'); btn.textContent = 'フォロー'; btn.dataset.followUri = ''; }
     else { const r = await withAuth(() => apiFollow(did)); btn.classList.add('following'); btn.textContent = 'フォロー中'; btn.dataset.followUri = r.uri || ''; }
-  } catch(e) { showToast(e.message, 'error'); }
+  } catch(e) { showErrorToast(e, 'フォロー操作に失敗しました。'); }
   finally { btn.disabled = false; }
 }
 
 // =============================================
 //  削除
 // =============================================
-function openDeleteModal(uri) { S.deleteTarget = uri; document.getElementById('delete-modal').classList.remove('hidden'); }
+function openDeleteModal(uri) { S.deleteTarget = uri; openModalById('delete-modal', '#delete-cancel-btn'); }
 
 async function confirmDelete() {
   if (!S.deleteTarget) return;
@@ -1946,7 +3255,7 @@ async function confirmDelete() {
     clearFetchCache('home::');
     showToast('削除しました', 'success');
     document.getElementById('delete-modal').classList.add('hidden'); S.deleteTarget = null;
-  } catch(e) { showToast(e.message, 'error'); }
+  } catch(e) { showErrorToast(e, '削除に失敗しました。'); }
   finally { btn.disabled = false; btn.textContent = '削除する'; }
 }
 
@@ -2002,7 +3311,7 @@ async function handleProfileSave() {
     await loadMyProfile();
     document.getElementById('profile-feed').innerHTML = '';
     if (S.tab === 'profile') loadTab('profile');
-  } catch(e) { showToast(e.message, 'error'); }
+  } catch(e) { showErrorToast(e, 'プロフィール更新に失敗しました。'); }
   finally { setLoading(btn, false); }
 }
 
@@ -2026,7 +3335,7 @@ async function handleLoadMore(btn) {
           ? await withAuth(() => apiSearchPosts(applyJapanSearchHint(getPinnedHomeQuery()), cursor, 'latest'))
           : await withAuth(() => apiGetTimeline(cursor));
       btn.remove();
-      const rows = S.homeSubTab === 'pinned' ? (data.posts || []).map(p => ({ post: p })) : (data.feed || []);
+      const rows = normalizeFeedRows(S.homeSubTab === 'pinned' ? (data.posts || []).map(p => ({ post: p })) : (data.feed || []));
       rows.forEach(i => appendCards(feed, renderPostCard(i, myDid)));
       S.cursors[tab] = data.cursor || null;
       if (data.cursor) addLoadMoreBtn(feed, tab);
@@ -2040,24 +3349,59 @@ async function handleLoadMore(btn) {
         data = await withAuth(() => apiGetAuthorFeed(actor, filter, cursor));
       }
       btn.remove();
-      data.feed?.forEach(i => appendCards(feed, renderPostCard(i, myDid)));
+      normalizeFeedRows(data.feed || []).forEach(i => appendCards(feed, renderPostCard(i, myDid)));
       S.cursors[tab] = data.cursor || null;
       if (data.cursor) addLoadMoreBtn(feed, tab);
     } else if (tab === 'notifications') {
       const data = await withAuth(() => apiGetNotifications(cursor));
-      S.cachedNotifs = [...S.cachedNotifs, ...(data.notifications || [])];
+      const appended = await enrichNotificationsWithSubjectPreview(data.notifications || []);
+      S.cachedNotifs = [...S.cachedNotifs, ...appended];
       S.cursors[tab] = data.cursor || null;
       btn.remove();
       renderNotifList();
     }
-  } catch(e) { showToast(e.message, 'error'); btn.textContent = 'もっと読み込む'; btn.disabled = false; }
+  } catch(e) { showErrorToast(e, '追加読み込みに失敗しました。'); btn.textContent = 'もっと読み込む'; btn.disabled = false; }
   finally { S.loading[tab] = false; }
+}
+
+let loadMoreObserver = null;
+function initLoadMoreObserver() {
+  if (!('IntersectionObserver' in window)) return;
+  if (loadMoreObserver) return;
+  loadMoreObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const btn = entry.target;
+      if (!(btn instanceof HTMLElement)) return;
+      if (btn.dataset.autoLoading === '1') return;
+      btn.dataset.autoLoading = '1';
+      handleLoadMore(btn).finally(() => {
+        btn.dataset.autoLoading = '0';
+      });
+    });
+  }, { rootMargin: '160px 0px 200px 0px', threshold: 0.01 });
+
+  const observeButtons = () => {
+    document.querySelectorAll('.load-more-btn').forEach(btn => loadMoreObserver.observe(btn));
+  };
+  observeButtons();
+  const mo = new MutationObserver(() => observeButtons());
+  mo.observe(document.body, { childList: true, subtree: true });
 }
 
 // =============================================
 //  通知ポーリング
 // =============================================
 let notifInterval = null;
+function updateNotifLiveRegion(count) {
+  const n = Number(count || 0);
+  if (S.lastUnreadCount === n) return;
+  S.lastUnreadCount = n;
+  const region = document.getElementById('notif-live-region');
+  if (!region) return;
+  region.textContent = n > 0 ? `未読通知が ${n} 件あります` : '未読通知はありません';
+}
+
 async function checkNotif() {
   try {
     const d = await withAuth(() => apiGetUnreadCount());
@@ -2066,17 +3410,35 @@ async function checkNotif() {
     if (!badge) return;
     if (n > 0) { badge.textContent = n > 99 ? '99+' : n; badge.classList.remove('hidden'); }
     else badge.classList.add('hidden');
+    updateNotifLiveRegion(n);
   } catch {}
 }
-function startNotifPoll() { checkNotif(); notifInterval = setInterval(checkNotif, 30000); }
+function startNotifPoll() {
+  stopNotifPoll();
+  if (document.hidden) return;
+  checkNotif();
+  notifInterval = setInterval(() => {
+    if (document.hidden) return;
+    checkNotif();
+  }, getNotifPollMs());
+}
 function stopNotifPoll()  { clearInterval(notifInterval); notifInterval = null; }
 
+function handleVisibilityForNotifPoll() {
+  if (!S.session) return;
+  if (document.hidden) {
+    stopNotifPoll();
+    return;
+  }
+  startNotifPoll();
+}
+
 function openLogoutActionModal() {
-  document.getElementById('logout-action-modal')?.classList.remove('hidden');
+  openModalById('logout-action-modal', '#logout-action-cancel');
 }
 
 function closeLogoutActionModal() {
-  document.getElementById('logout-action-modal')?.classList.add('hidden');
+  closeModalById('logout-action-modal');
 }
 
 function confirmAndLogout() {
@@ -2106,22 +3468,25 @@ function handleSettingsLogoutClick() {
   handleLogout();
 }
 
-function handleLogout() {
+function handleLogout(options = {}) {
+  const preserveCompose = options?.preserveCompose === true;
   clearSession(); S.session = null; S.myProfile = null;
-  clearComposeCache();
+  if (!preserveCompose) clearComposeCache();
   clearFetchCache();
   stopNotifPoll();
+  clearTimeout(inactivityTimer);
+  inactivityTimer = null;
   document.querySelectorAll('.feed').forEach(f => f.innerHTML = '');
   Object.keys(S.cursors).forEach(k => delete S.cursors[k]);
   showLogin();
 }
 
 function openShortcutsModal() {
-  document.getElementById('shortcuts-modal')?.classList.remove('hidden');
+  openModalById('shortcuts-modal', '#shortcuts-close-btn');
 }
 
 function closeShortcutsModal() {
-  document.getElementById('shortcuts-modal')?.classList.add('hidden');
+  closeModalById('shortcuts-modal');
 }
 
 function isTypingTarget(target) {
@@ -2172,17 +3537,37 @@ function consumeNavChord(key) {
 }
 
 function handleGlobalKeydown(e) {
+  const actionBtn = e.target?.closest?.('.post-actions .act-btn');
+  if (actionBtn && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+    const row = actionBtn.closest('.post-actions');
+    const items = row ? [...row.querySelectorAll('.act-btn')] : [];
+    const idx = items.indexOf(actionBtn);
+    if (idx >= 0 && items.length > 1) {
+      const delta = e.key === 'ArrowRight' ? 1 : -1;
+      const next = (idx + delta + items.length) % items.length;
+      items[next].focus();
+      e.preventDefault();
+      return;
+    }
+  }
+
   const key = String(e.key || '').toLowerCase();
   const typing = isTypingTarget(e.target);
+  const shortcuts = getActiveShortcutPrefs();
+  const shortcutsEnabled = window.__skydeckShortcutsEnabled !== false;
+
+  if (trapFocusInTopModal(e)) return;
 
   if (e.key === 'Escape') {
-    closeLogoutActionModal();
-    closeShortcutsModal();
-    if (!document.getElementById('quick-post-modal')?.classList.contains('hidden')) closeQuickPostModal();
+    if (closeTopVisibleModal()) {
+      e.preventDefault();
+      return;
+    }
     return;
   }
 
   if ((e.ctrlKey || e.metaKey) && key === 'k') {
+    if (!shortcutsEnabled) return;
     e.preventDefault();
     focusSearchInput();
     return;
@@ -2190,26 +3575,27 @@ function handleGlobalKeydown(e) {
 
   // Ctrl/Cmd/Alt 系のショートカットは、専用ハンドラ以外で吸わない
   if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (!shortcutsEnabled) return;
 
-  if (!typing && key === '?') {
+  if (!typing && key === shortcuts.showHelp) {
     e.preventDefault();
     openShortcutsModal();
     return;
   }
 
-  if (!typing && key === '/') {
+  if (!typing && key === shortcuts.focusSearch) {
     e.preventDefault();
     focusSearchInput();
     return;
   }
 
-  if (!typing && key === 'c') {
+  if (!typing && key === shortcuts.focusCompose) {
     e.preventDefault();
     focusComposeInput();
     return;
   }
 
-  if (!typing && key === 'g') {
+  if (!typing && key === shortcuts.navPrefix) {
     e.preventDefault();
     startNavChord();
     return;
@@ -2251,6 +3637,7 @@ function bindAll() {
 
   // ナビ
   document.querySelectorAll('.nav-item').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+  document.querySelectorAll('.mobile-nav-item').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
 
   // サブタブ
   document.querySelectorAll('#tab-home .sub-tab').forEach(b => b.addEventListener('click', () => switchHomeSubTab(b.dataset.sub)));
@@ -2289,6 +3676,10 @@ function bindAll() {
   document.getElementById('search-recent-clear')?.addEventListener('click', clearSearchHistory);
   document.getElementById('search-ime-cancel')?.addEventListener('click', closeSearchImeModal);
   document.getElementById('search-ime-apply')?.addEventListener('click', applySearchImeInput);
+  document.getElementById('migration-wizard-close')?.addEventListener('click', () => closeModalById('migration-wizard-modal'));
+  document.getElementById('migration-wizard-modal')?.addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeModalById('migration-wizard-modal');
+  });
   document.getElementById('search-ime-modal')?.addEventListener('click', e => {
     if (e.target === e.currentTarget) closeSearchImeModal();
   });
@@ -2309,8 +3700,19 @@ function bindAll() {
   // compose
   document.getElementById('compose-text').addEventListener('input', updateCharCount);
   document.getElementById('compose-text').addEventListener('input', refreshRightStats);
+  document.getElementById('compose-text').addEventListener('input', renderComposeHashtagSuggestions);
   document.getElementById('compose-text').addEventListener('input', cacheComposeState);
-  document.getElementById('reply-restriction').addEventListener('change', cacheComposeState);
+  document.getElementById('reply-restriction').addEventListener('change', e => {
+    cacheComposeState();
+    setReplyTemplate(e.target.value);
+  });
+  document.getElementById('quick-post-restriction')?.addEventListener('change', e => {
+    setReplyTemplate(e.target.value);
+  });
+  document.getElementById('reply-template-select')?.addEventListener('change', e => {
+    setReplyTemplate(e.target.value);
+    showToast('公開範囲テンプレートを更新しました', 'success', 1400);
+  });
   document.getElementById('compose-text').addEventListener('keydown', e => { if ((e.metaKey||e.ctrlKey) && e.key === 'Enter') handlePost(); });
   document.getElementById('image-input').addEventListener('change', handleImageSelect);
   document.getElementById('quick-post-image-input')?.addEventListener('change', handleQuickImageSelect);
@@ -2356,6 +3758,8 @@ function bindAll() {
 
   // DM
   document.getElementById('dm-start-btn')?.addEventListener('click', openDmStartModal);
+  document.getElementById('dm-search-input')?.addEventListener('input', renderDmConversationList);
+  document.getElementById('dm-image-btn')?.addEventListener('click', handleDmImageScaffold);
   document.getElementById('dm-send-btn').addEventListener('click', sendDM);
   document.getElementById('dm-input').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendDM(); } });
   document.getElementById('dm-back-btn').addEventListener('click', () => document.getElementById('dm-chat-panel').classList.add('hidden'));
@@ -2374,6 +3778,9 @@ function bindAll() {
   // 設定画面のログアウト
   document.getElementById('settings-logout-btn')?.addEventListener('click', handleSettingsLogoutClick);
   document.getElementById('theme-toggle-btn')?.addEventListener('click', toggleThemeMode);
+  document.getElementById('settings-theme-mode')?.addEventListener('change', onThemeModeChange);
+  document.getElementById('settings-font-scale')?.addEventListener('change', onFontScaleModeChange);
+  document.getElementById('settings-reading-width')?.addEventListener('change', onReadingWidthModeChange);
   document.getElementById('settings-show-control-deck')?.addEventListener('change', onSettingsControlDeckChange);
   document.getElementById('settings-enable-feed-width')?.addEventListener('change', onFeedWidthSettingsChange);
   document.getElementById('settings-feed-width')?.addEventListener('input', e => {
@@ -2381,11 +3788,32 @@ function bindAll() {
     if (label) label.textContent = `${Number(e.target.value || 680)}px`;
   });
   document.getElementById('settings-feed-width-apply')?.addEventListener('click', applyFeedWidthWithLock);
+  document.getElementById('settings-notif-interval')?.addEventListener('change', onNotifPollIntervalChange);
+  document.getElementById('settings-toast-duration')?.addEventListener('change', onToastDurationChange);
+  document.getElementById('settings-startup-tab-mode')?.addEventListener('change', onStartupTabModeChange);
+  document.getElementById('settings-inactivity-timeout')?.addEventListener('change', onInactivityTimeoutChange);
+  document.getElementById('settings-post-density')?.addEventListener('change', onPostDensityModeChange);
+  document.getElementById('settings-image-autoload')?.addEventListener('change', onImageAutoloadModeChange);
+  document.getElementById('settings-shortcut-help')?.addEventListener('change', onShortcutPrefsChange);
+  document.getElementById('settings-shortcut-search')?.addEventListener('change', onShortcutPrefsChange);
+  document.getElementById('settings-shortcut-compose')?.addEventListener('change', onShortcutPrefsChange);
+  document.getElementById('settings-shortcut-nav')?.addEventListener('change', onShortcutPrefsChange);
+  document.getElementById('settings-shortcut-reset')?.addEventListener('click', resetShortcutPrefs);
+  document.getElementById('settings-shortcuts-enabled')?.addEventListener('change', onShortcutsEnabledChange);
   document.getElementById('settings-japan-mode')?.addEventListener('change', handleExperienceSettingsChange);
   document.getElementById('settings-japan-trends')?.addEventListener('change', handleExperienceSettingsChange);
   document.getElementById('settings-personalize')?.addEventListener('change', handleExperienceSettingsChange);
   document.getElementById('settings-report-admin-btn')?.addEventListener('click', reportToAdmin);
   document.getElementById('settings-shortcuts-btn')?.addEventListener('click', openShortcutsModal);
+  document.getElementById('settings-export-prefs-btn')?.addEventListener('click', exportSettingsToFile);
+  document.getElementById('settings-import-prefs-btn')?.addEventListener('click', () => {
+    document.getElementById('settings-import-prefs-file')?.click();
+  });
+  document.getElementById('settings-import-prefs-file')?.addEventListener('change', async e => {
+    const file = e.target?.files?.[0] || null;
+    await importSettingsFromFile(file);
+    e.target.value = '';
+  });
 
   // プロフィール編集
   document.getElementById('profile-save-btn').addEventListener('click', handleProfileSave);
@@ -2439,6 +3867,11 @@ function bindAll() {
   document.addEventListener('click', handleDelegatedClick);
   document.addEventListener('click', handleExternalLinkGuard, true);
   document.addEventListener('keydown', handleGlobalKeydown);
+  document.addEventListener('visibilitychange', handleVisibilityForNotifPoll);
+  window.addEventListener('online', flushQueuedPosts);
+  ['click', 'keydown', 'pointerdown', 'touchstart', 'scroll'].forEach(evt => {
+    document.addEventListener(evt, resetInactivityTimer, { passive: true });
+  });
 }
 
 async function handleLogin() {
@@ -2449,6 +3882,7 @@ async function handleLogin() {
   errEl.classList.add('hidden');
   if (!handle || !pass) { errEl.textContent = 'ハンドルとアプリパスワードを入力してください'; errEl.classList.remove('hidden'); return; }
   setLoading(btn, true);
+  const t0 = performance.now();
   try {
     const sess = await apiLogin(handle, pass);
     saveSession(sess); S.session = sess;
@@ -2461,6 +3895,9 @@ async function handleLogin() {
     switchTab(bootTab);
     await loadTab(bootTab);
     startNotifPoll();
+    resetInactivityTimer();
+    flushQueuedPosts();
+    trackPerfMetric('auth:login', performance.now() - t0);
     document.getElementById('login-password').value = '';
   } catch(e) {
     errEl.innerHTML = escapeHtml(e.message).replace(/\n/g, '<br>');
@@ -2601,6 +4038,76 @@ async function handleLoginConnectivityCheck() {
 //  委任クリックハンドラー（全フィード共通）
 // =============================================
 function handleDelegatedClick(e) {
+  const emptyActionBtn = e.target.closest('[data-empty-action]');
+  if (emptyActionBtn) {
+    const action = String(emptyActionBtn.dataset.emptyAction || '').trim();
+    const inp = document.getElementById('search-input');
+    if (action === 'home') {
+      switchTab('home');
+      return;
+    }
+    if (action === 'search') {
+      switchTab('search');
+      switchSearchTab('posts');
+      inp?.focus();
+      return;
+    }
+    if (action === 'search-latest') {
+      switchTab('search');
+      switchSearchTab('latest');
+      if (inp?.value?.trim()) execSearch(inp.value.trim());
+      return;
+    }
+    if (action === 'search-posts') {
+      switchTab('search');
+      switchSearchTab('posts');
+      if (inp?.value?.trim()) execSearch(inp.value.trim());
+      return;
+    }
+    if (action === 'trend-all') {
+      switchTab('search');
+      switchSearchTab('trends');
+      setTrendCategory('all');
+      execSearch('');
+      return;
+    }
+  }
+
+  const markReadBtn = e.target.closest('[data-mark-read="1"]');
+  if (markReadBtn) {
+    markNotificationsAsReadLocal({
+      reason: markReadBtn.dataset.markReason,
+      subject: markReadBtn.dataset.markSubject,
+      indexedAt: markReadBtn.dataset.markIndexedAt,
+      authorDid: markReadBtn.dataset.markAuthorDid,
+    });
+    renderNotifList();
+    checkNotif();
+    return;
+  }
+
+  const dmReadToggle = e.target.closest('[data-dm-toggle-read]');
+  if (dmReadToggle) {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleDmReadStateById(dmReadToggle.dataset.dmToggleRead);
+    return;
+  }
+
+  const loadImagesBtn = e.target.closest('.load-images-btn');
+  if (loadImagesBtn) {
+    const container = loadImagesBtn.closest('.post-images');
+    if (container) {
+      container.querySelectorAll('img[data-src]').forEach(img => {
+        img.src = img.dataset.src || '';
+        img.removeAttribute('data-src');
+      });
+      container.querySelectorAll('.img-item.hidden').forEach(el => el.classList.remove('hidden'));
+      loadImagesBtn.closest('.post-images-blocked')?.remove();
+    }
+    return;
+  }
+
   // 画像をクリック
   const imgItem = e.target.closest('.post-images .img-item');
   if (imgItem) {
@@ -2694,6 +4201,21 @@ function handleDelegatedClick(e) {
     }
     return;
   }
+
+  const hashtagInsert = e.target.closest('[data-hashtag-insert]');
+  if (hashtagInsert) {
+    const ta = document.getElementById('compose-text');
+    const tag = String(hashtagInsert.dataset.hashtagInsert || '').trim();
+    if (ta && tag) {
+      const hasTag = ta.value.includes(tag);
+      ta.value = hasTag ? ta.value : `${ta.value}${ta.value ? ' ' : ''}${tag}`.slice(0, 320);
+      updateCharCount();
+      renderComposeHashtagSuggestions();
+      cacheComposeState();
+      ta.focus();
+    }
+    return;
+  }
   // 返信ボタン
   const replyBtn = e.target.closest('.reply-btn');
   if (replyBtn) {
@@ -2739,10 +4261,38 @@ function handleDelegatedClick(e) {
   // 「他N件の返信を表示」
   const moreBtn = e.target.closest('.show-more-replies-btn');
   if (moreBtn) {
-    const moreContainer = moreBtn.closest('.thread-more')?.nextElementSibling;
-    if (moreContainer) { moreContainer.classList.remove('hidden'); moreBtn.closest('.thread-more').remove(); }
+    const step = Math.max(1, Number(moreBtn.dataset.step || 3));
+    const moreWrap = moreBtn.closest('.thread-more');
+    const moreContainer = moreWrap?.previousElementSibling;
+    if (moreContainer) {
+      const hiddenItems = [...moreContainer.querySelectorAll('.more-reply-item.hidden')];
+      hiddenItems.slice(0, step).forEach(el => el.classList.remove('hidden'));
+      const remain = moreContainer.querySelectorAll('.more-reply-item.hidden').length;
+      if (remain > 0) {
+        moreBtn.dataset.count = String(remain);
+        moreBtn.textContent = `他 ${remain} 件の返信を表示`;
+      } else {
+        moreWrap?.remove();
+      }
+    }
     return;
   }
+
+  const notifActorsToggle = e.target.closest('.notif-actors-toggle');
+  if (notifActorsToggle) {
+    const wrap = notifActorsToggle.closest('.notif-actors-wrap');
+    const collapsed = wrap?.querySelector('.notif-actors-collapsed');
+    const expanded = wrap?.querySelector('.notif-actors-expanded');
+    if (notifActorsToggle.dataset.action === 'expand') {
+      collapsed?.classList.add('hidden');
+      expanded?.classList.remove('hidden');
+    } else {
+      expanded?.classList.add('hidden');
+      collapsed?.classList.remove('hidden');
+    }
+    return;
+  }
+
   // 削除
   const deleteBtn = e.target.closest('.delete-btn');
   if (deleteBtn) { openDeleteModal(deleteBtn.dataset.uri); return; }
