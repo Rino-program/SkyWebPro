@@ -12,13 +12,35 @@ const BSKY_PUB  = 'https://bsky.social/xrpc';
 const SESSION_KEY = 'skydeck_session_v3';
 const DRAFTS_KEY  = 'skydeck_drafts_v2';
 const MAX_IMAGE_BYTES = 1000000;
+const API_MEMORY_STORAGE = new Map();
+
+function safeStorageGetItem(key) {
+  try { return localStorage.getItem(key); }
+  catch { return API_MEMORY_STORAGE.has(key) ? API_MEMORY_STORAGE.get(key) : null; }
+}
+
+function safeStorageSetItem(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    API_MEMORY_STORAGE.set(key, value);
+    return true;
+  } catch {
+    API_MEMORY_STORAGE.set(key, value);
+    return false;
+  }
+}
+
+function safeStorageRemoveItem(key) {
+  try { localStorage.removeItem(key); } catch {}
+  API_MEMORY_STORAGE.delete(key);
+}
 
 // =============================================
 //  セッション
 // =============================================
-function saveSession(s)  { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); }
-function loadSession()   { try { return JSON.parse(localStorage.getItem(SESSION_KEY)||'null'); } catch { return null; } }
-function clearSession()  { localStorage.removeItem(SESSION_KEY); }
+function saveSession(s)  { safeStorageSetItem(SESSION_KEY, JSON.stringify(s)); }
+function loadSession()   { try { return JSON.parse(safeStorageGetItem(SESSION_KEY)||'null'); } catch { return null; } }
+function clearSession()  { safeStorageRemoveItem(SESSION_KEY); }
 
 function getAuth() {
   const s = loadSession();
@@ -459,6 +481,6 @@ async function apiUnfollow(followUri) {
 // =============================================
 //  下書き
 // =============================================
-function getDrafts()     { try { return JSON.parse(localStorage.getItem(DRAFTS_KEY)||'[]'); } catch { return []; } }
-function saveDraft(text) { const d = getDrafts(); d.unshift({ id: Date.now(), text, savedAt: new Date().toISOString() }); localStorage.setItem(DRAFTS_KEY, JSON.stringify(d.slice(0, 20))); }
-function deleteDraft(id) { localStorage.setItem(DRAFTS_KEY, JSON.stringify(getDrafts().filter(d => d.id !== id))); }
+function getDrafts()     { try { return JSON.parse(safeStorageGetItem(DRAFTS_KEY)||'[]'); } catch { return []; } }
+function saveDraft(text) { const d = getDrafts(); d.unshift({ id: Date.now(), text, savedAt: new Date().toISOString() }); safeStorageSetItem(DRAFTS_KEY, JSON.stringify(d.slice(0, 20))); }
+function deleteDraft(id) { safeStorageSetItem(DRAFTS_KEY, JSON.stringify(getDrafts().filter(d => d.id !== id))); }

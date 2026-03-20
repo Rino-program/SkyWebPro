@@ -19,6 +19,68 @@ const APP_MAX_IMAGE_BYTES = 1000000;
 const RIGHT_PANEL_PREFS_KEY = 'skydeck_right_panel_prefs_v1';
 const POST_HISTORY_KEY = 'skydeck_post_history_v1';
 const ADMIN_REPORT_HANDLE = 'rino-program.bsky.social';
+const LOGIN_CONSOLE_MAX_LINES = 200;
+const APP_MEMORY_STORAGE = new Map();
+
+function safeStorageGet(key) {
+  try { return localStorage.getItem(key); }
+  catch { return APP_MEMORY_STORAGE.has(key) ? APP_MEMORY_STORAGE.get(key) : null; }
+}
+
+function safeStorageSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    APP_MEMORY_STORAGE.set(key, value);
+    return true;
+  } catch {
+    APP_MEMORY_STORAGE.set(key, value);
+    return false;
+  }
+}
+
+function formatLogArg(v) {
+  if (v instanceof Error) return v.stack || v.message;
+  if (typeof v === 'string') return v;
+  try { return JSON.stringify(v); } catch { return String(v); }
+}
+
+function appendLoginConsole(level, args) {
+  const out = document.getElementById('login-console-output');
+  if (!out) return;
+  const ts = new Date().toLocaleTimeString('ja-JP', { hour12: false });
+  const text = args.map(formatLogArg).join(' ');
+  const line = `[${ts}] ${level.toUpperCase()} ${text}`;
+  const lines = (out.textContent || '').split('\n').filter(Boolean);
+  lines.push(line);
+  out.textContent = lines.slice(-LOGIN_CONSOLE_MAX_LINES).join('\n');
+  out.scrollTop = out.scrollHeight;
+}
+
+function installLoginConsoleCapture() {
+  if (window.__skydeckLoginConsoleInstalled) return;
+  window.__skydeckLoginConsoleInstalled = true;
+
+  ['log', 'info', 'warn', 'error'].forEach(level => {
+    const original = console[level].bind(console);
+    console[level] = (...args) => {
+      original(...args);
+      appendLoginConsole(level, args);
+    };
+  });
+
+  window.addEventListener('error', ev => {
+    appendLoginConsole('error', [ev.message || 'window error']);
+  });
+  window.addEventListener('unhandledrejection', ev => {
+    appendLoginConsole('error', ['unhandledrejection', ev.reason]);
+  });
+}
+
+function clearLoginConsole() {
+  const out = document.getElementById('login-console-output');
+  if (!out) return;
+  out.textContent = '[SkyDeck] login console cleared';
+}
 
 // =============================================
 //  console.error のポップアップ表示
@@ -39,6 +101,7 @@ const ADMIN_REPORT_HANDLE = 'rino-program.bsky.social';
 //  初期化
 // =============================================
 async function init() {
+  installLoginConsoleCapture();
   applySavedTheme();
   const sess = loadSession();
   if (sess) {
@@ -71,7 +134,7 @@ function showApp() {
 function getRightPanelPrefs() {
   const base = { notes: true, actions: true, stats: true, visible: true, collapsed: false, mini: false };
   try {
-    const p = JSON.parse(localStorage.getItem(RIGHT_PANEL_PREFS_KEY) || 'null');
+    const p = JSON.parse(safeStorageGet(RIGHT_PANEL_PREFS_KEY) || 'null');
     if (!p || typeof p !== 'object') return base;
     return {
       notes: p.notes !== false,
@@ -87,7 +150,7 @@ function getRightPanelPrefs() {
 }
 
 function saveRightPanelPrefs(next) {
-  localStorage.setItem(RIGHT_PANEL_PREFS_KEY, JSON.stringify(next));
+  safeStorageSet(RIGHT_PANEL_PREFS_KEY, JSON.stringify(next));
 }
 
 function applyRightPanelPrefs() {
@@ -233,7 +296,7 @@ function switchInsightRange(range) {
 
 function getPostHistory() {
   try {
-    const raw = JSON.parse(localStorage.getItem(POST_HISTORY_KEY) || '[]');
+    const raw = JSON.parse(safeStorageGet(POST_HISTORY_KEY) || '[]');
     if (!Array.isArray(raw)) return [];
     return raw
       .filter(v => v && typeof v.ts === 'number' && typeof v.len === 'number')
@@ -245,7 +308,7 @@ function getPostHistory() {
 }
 
 function savePostHistory(list) {
-  localStorage.setItem(POST_HISTORY_KEY, JSON.stringify(list.slice(-1000)));
+  safeStorageSet(POST_HISTORY_KEY, JSON.stringify(list.slice(-1000)));
 }
 
 function logPostActivity(text, imageCount) {
@@ -327,13 +390,13 @@ function applyTheme(mode) {
   if (!html) return;
   if (mode === 'dark') html.setAttribute('data-theme', 'dark');
   else html.removeAttribute('data-theme');
-  localStorage.setItem(THEME_KEY, mode);
+  safeStorageSet(THEME_KEY, mode);
   const btn = document.getElementById('theme-toggle-btn');
   if (btn) btn.textContent = mode === 'dark' ? 'ライトへ' : 'ダークへ';
 }
 
 function applySavedTheme() {
-  const saved = localStorage.getItem(THEME_KEY) || 'light';
+  const saved = safeStorageGet(THEME_KEY) || 'light';
   applyTheme(saved === 'dark' ? 'dark' : 'light');
 }
 
@@ -907,7 +970,7 @@ function loadQuickNote() {
   const inp = document.getElementById('quick-note-input');
   const status = document.getElementById('quick-note-status');
   if (!inp || !status) return;
-  const saved = localStorage.getItem(QUICK_NOTE_KEY) || '';
+  const saved = safeStorageGet(QUICK_NOTE_KEY) || '';
   inp.value = saved;
   status.textContent = saved ? '保存済みメモを読み込みました' : '未保存';
   renderQuickNoteList();
@@ -919,11 +982,11 @@ function saveQuickNote() {
   const status = document.getElementById('quick-note-status');
   if (!inp || !status) return;
   const text = (inp.value || '').trim();
-  localStorage.setItem(QUICK_NOTE_KEY, text);
+  safeStorageSet(QUICK_NOTE_KEY, text);
   if (text) {
     const curr = getQuickNoteList();
     const next = [text, ...curr.filter(v => v !== text)].slice(0, 8);
-    localStorage.setItem(QUICK_NOTE_LIST_KEY, JSON.stringify(next));
+    safeStorageSet(QUICK_NOTE_LIST_KEY, JSON.stringify(next));
   }
   renderQuickNoteList();
   status.textContent = '保存しました';
@@ -932,7 +995,7 @@ function saveQuickNote() {
 
 function getQuickNoteList() {
   try {
-    const raw = JSON.parse(localStorage.getItem(QUICK_NOTE_LIST_KEY) || '[]');
+    const raw = JSON.parse(safeStorageGet(QUICK_NOTE_LIST_KEY) || '[]');
     if (!Array.isArray(raw)) return [];
     return raw.filter(v => typeof v === 'string' && v.trim()).slice(0, 8);
   } catch {
@@ -970,7 +1033,7 @@ function deleteQuickNoteByIndex(index) {
   const list = getQuickNoteList();
   if (index < 0 || index >= list.length) return;
   list.splice(index, 1);
-  localStorage.setItem(QUICK_NOTE_LIST_KEY, JSON.stringify(list));
+  safeStorageSet(QUICK_NOTE_LIST_KEY, JSON.stringify(list));
   renderQuickNoteList();
   refreshRightStats();
 }
@@ -1204,6 +1267,7 @@ function bindAll() {
   // ログイン
   document.getElementById('login-btn').addEventListener('click', handleLogin);
   document.getElementById('login-check-btn')?.addEventListener('click', handleLoginConnectivityCheck);
+  document.getElementById('login-console-clear')?.addEventListener('click', clearLoginConsole);
   document.getElementById('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
 
   // ログアウト
@@ -1327,9 +1391,12 @@ async function handleLogin() {
 
 async function runProbe(label, url) {
   const start = performance.now();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 8000);
   try {
-    const res = await fetch(url, { method: 'GET', cache: 'no-store' });
+    const res = await fetch(url, { method: 'GET', cache: 'no-store', signal: ctrl.signal });
     const elapsed = Math.round(performance.now() - start);
+    clearTimeout(timer);
     return {
       label,
       ok: res.ok,
@@ -1340,13 +1407,17 @@ async function runProbe(label, url) {
     };
   } catch (e) {
     const elapsed = Math.round(performance.now() - start);
+    clearTimeout(timer);
+    const detail = e?.name === 'AbortError'
+      ? 'timeout'
+      : (e?.message || 'network/cors error');
     return {
       label,
       ok: false,
       status: 'ERR',
       statusText: '',
       elapsed,
-      note: `接続失敗: ${e?.message || 'network error'}`,
+      note: `接続失敗: ${detail}`,
     };
   }
 }
@@ -1364,43 +1435,57 @@ async function handleLoginConnectivityCheck() {
   const handleInput = document.getElementById('login-handle');
   if (!btn) return;
   setLoading(btn, true);
+  try {
+    const now = new Date();
+    const lines = [`接続診断: ${now.toLocaleString('ja-JP')}`];
 
-  const now = new Date();
-  const lines = [`接続診断: ${now.toLocaleString('ja-JP')}`];
-  const probes = await Promise.all([
-    runProbe('Public API', 'https://bsky.social/xrpc/com.atproto.server.describeServer'),
-    runProbe('Chat API', 'https://api.bsky.chat/xrpc/_health'),
-  ]);
-
-  probes.forEach(p => {
-    lines.push(`- ${p.label}: ${p.status} ${p.statusText} (${p.elapsed}ms) / ${p.note}`.trim());
-  });
-
-  const rawHandle = String(handleInput?.value || '').replace(/^@/, '').trim();
-  if (rawHandle) {
-    const resolveUrl = `https://bsky.social/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(rawHandle)}`;
-    const h = await runProbe('Handle Resolve', resolveUrl);
-    lines.push(`- Handle Resolve: ${h.status} ${h.statusText} (${h.elapsed}ms) / ${h.note}`.trim());
-    if (h.ok) {
-      try {
-        const resp = await fetch(resolveUrl, { method: 'GET', cache: 'no-store' });
-        const data = await resp.json().catch(() => ({}));
-        if (data?.did) lines.push(`  DID: ${data.did}`);
-      } catch {}
+    // Safariのプライベートモード等で起きるストレージ制限の診断
+    try {
+      const k = '__skydeck_storage_probe__';
+      localStorage.setItem(k, '1');
+      localStorage.removeItem(k);
+      lines.push('- Storage: OK (localStorage writable)');
+    } catch (e) {
+      lines.push(`- Storage: WARN (${e?.name || 'StorageError'}) localStorageが制限されています`);
     }
-  } else {
-    lines.push('- Handle Resolve: スキップ（ハンドル未入力）');
+
+    const probes = await Promise.all([
+      runProbe('Public API', 'https://bsky.social/xrpc/com.atproto.server.describeServer'),
+      runProbe('Chat API', 'https://api.bsky.chat/xrpc/chat.bsky.convo.listConvos?limit=1'),
+    ]);
+
+    probes.forEach(p => {
+      lines.push(`- ${p.label}: ${p.status} ${p.statusText} (${p.elapsed}ms) / ${p.note}`.trim());
+    });
+
+    const rawHandle = String(handleInput?.value || '').replace(/^@/, '').trim();
+    if (rawHandle) {
+      const resolveUrl = `https://bsky.social/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(rawHandle)}`;
+      const h = await runProbe('Handle Resolve', resolveUrl);
+      lines.push(`- Handle Resolve: ${h.status} ${h.statusText} (${h.elapsed}ms) / ${h.note}`.trim());
+      if (h.ok) {
+        try {
+          const resp = await fetch(resolveUrl, { method: 'GET', cache: 'no-store' });
+          const data = await resp.json().catch(() => ({}));
+          if (data?.did) lines.push(`  DID: ${data.did}`);
+        } catch {}
+      }
+    } else {
+      lines.push('- Handle Resolve: スキップ（ハンドル未入力）');
+    }
+
+    const allOk = probes.every(p => p.ok);
+    const someOk = probes.some(p => p.ok);
+    const level = allOk ? 'ok' : someOk ? 'warn' : 'err';
+    if (level === 'ok') lines.push('判定: 主要サーバーへ正常に接続できています。');
+    else if (level === 'warn') lines.push('判定: 一部接続に問題があります。GitHub Pages配信時はCORS/ネットワーク制約の可能性があります。');
+    else lines.push('判定: サーバーへ接続できません。回線・DNS・CSP設定を確認してください。');
+
+    renderLoginCheckResult(lines, level);
+    console.info('[connectivity-check]', lines.join(' | '));
+  } finally {
+    setLoading(btn, false);
   }
-
-  const allOk = probes.every(p => p.ok);
-  const someOk = probes.some(p => p.ok);
-  const level = allOk ? 'ok' : someOk ? 'warn' : 'err';
-  if (level === 'ok') lines.push('判定: 主要サーバーへ正常に接続できています。');
-  else if (level === 'warn') lines.push('判定: 一部接続に問題があります。ネットワークまたはAPI状態を確認してください。');
-  else lines.push('判定: サーバーへ接続できません。回線・DNS・CSP設定を確認してください。');
-
-  renderLoginCheckResult(lines, level);
-  setLoading(btn, false);
 }
 
 // =============================================

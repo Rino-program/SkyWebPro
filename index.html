@@ -66,6 +66,13 @@
       <span class="btn-spinner hidden"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="40" stroke-dashoffset="20" class="spin-el"/></svg></span>
     </button>
     <div id="login-check-result" class="login-check-result hidden" aria-live="polite"></div>
+    <div class="login-console-wrap" aria-live="polite">
+      <div class="login-console-head">
+        <span>Console Log</span>
+        <button id="login-console-clear" class="btn-sm" type="button">消去</button>
+      </div>
+      <pre id="login-console-output" class="login-console-output">[SkyDeck] login console ready</pre>
+    </div>
     <p class="login-note">認証情報はlocalStorageに保存されます。共用PCでの使用にご注意ください。</p>
   </div>
 </div>
