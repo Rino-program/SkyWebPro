@@ -1132,7 +1132,28 @@ function initMainWidthResizer() {
 
 function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    reg.update().catch(() => {});
+
+    const requestActivation = () => {
+      if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+    };
+
+    requestActivation();
+    reg.addEventListener('updatefound', () => {
+      const worker = reg.installing;
+      if (!worker) return;
+      worker.addEventListener('statechange', () => {
+        if (worker.state === 'installed') requestActivation();
+      });
+    });
+
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (window.__skywebproSwRefreshing) return;
+      window.__skywebproSwRefreshing = true;
+      window.location.reload();
+    });
+  }).catch(() => {});
 }
 
 // =============================================

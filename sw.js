@@ -1,4 +1,4 @@
-const CACHE_NAME = 'skywebpro-static-v1';
+const CACHE_NAME = 'skywebpro-static-v2';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -27,6 +27,31 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
+async function networkFirst(request, fallbackPath = null) {
+  try {
+    const fresh = await fetch(request, { cache: 'no-store' });
+    if (fresh && fresh.ok) {
+      const copy = fresh.clone();
+      caches.open(CACHE_NAME).then(cache => cache.put(request, copy)).catch(() => {});
+    }
+    return fresh;
+  } catch {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    if (fallbackPath) {
+      const fallback = await caches.match(fallbackPath);
+      if (fallback) return fallback;
+    }
+    return new Response('Offline', { status: 503, statusText: 'Offline' });
+  }
+}
+
 self.addEventListener('fetch', event => {
   const req = event.request;
   if (req.method !== 'GET') return;
@@ -36,16 +61,12 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  event.respondWith(
-    caches.match(req).then(cached => {
-      if (cached) {
-        return cached;
-      }
-      return fetch(req).then(res => {
-        const copy = res.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(req, copy)).catch(() => {});
-        return res;
-      }).catch(() => caches.match('./index.html'));
-    })
-  );
+  const isNavigation = req.mode === 'navigate' || req.destination === 'document';
+
+  if (isNavigation) {
+    event.respondWith(networkFirst(req, './index.html'));
+    return;
+  }
+
+  event.respondWith(networkFirst(req));
 });
