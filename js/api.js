@@ -224,7 +224,7 @@ async function apiGetProfile(actor) {
   const s = loadSession();
   const t = (actor || s.handle).replace(/^@/, '');
   const res = await fetch(`${BSKY_PUB}/app.bsky.actor.getProfile?actor=${encodeURIComponent(t)}`, { headers: getAuth() });
-  if (!res.ok) throw new Error('プロフィール取得失敗');
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || e.message || 'プロフィール取得失敗'); }
   return res.json();
 }
 
@@ -275,7 +275,7 @@ async function apiGetTimeline(cursor = null) {
   let url = `${BSKY_PUB}/app.bsky.feed.getTimeline?limit=30`;
   if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
   const res = await withRetry(() => fetch(url, { headers: getAuth() }), { attempts: 3, baseMs: 220 });
-  if (!res.ok) throw new Error('タイムライン取得失敗');
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || e.message || 'タイムライン取得失敗'); }
   return res.json();
 }
 
@@ -284,7 +284,7 @@ async function apiGetDiscover(cursor = null) {
   let url = `${BSKY_PUB}/app.bsky.feed.getFeed?feed=${encodeURIComponent(feedUri)}&limit=30`;
   if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
   const res = await fetch(url, { headers: getAuth() });
-  if (!res.ok) throw new Error('Discoverフィード取得失敗');
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || e.message || 'Discoverフィード取得失敗'); }
   return res.json();
 }
 
@@ -295,10 +295,10 @@ async function apiGetVideoFeed(cursor = null) {
 
 async function apiGetAuthorFeed(actor, filter = 'posts_no_replies', cursor = null) {
   const t = actor.replace(/^@/, '');
-  let url = `${BSKY_PUB}/app.bsky.feed.getAuthorFeed?actor=${encodeURIComponent(t)}&limit=30&filter=${filter}`;
+  let url = `${BSKY_PUB}/app.bsky.feed.getAuthorFeed?actor=${encodeURIComponent(t)}&limit=30&filter=${encodeURIComponent(filter)}`;
   if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
   const res = await fetch(url, { headers: getAuth() });
-  if (!res.ok) throw new Error('投稿一覧取得失敗');
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || e.message || '投稿一覧取得失敗'); }
   return res.json();
 }
 
@@ -307,7 +307,7 @@ async function apiGetActorLikes(actor, cursor = null) {
   let url = `${BSKY_PUB}/app.bsky.feed.getActorLikes?actor=${encodeURIComponent(t)}&limit=30`;
   if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
   const res = await fetch(url, { headers: getAuth() });
-  if (!res.ok) throw new Error('いいね一覧取得失敗');
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || e.message || 'いいね一覧取得失敗'); }
   return res.json();
 }
 
