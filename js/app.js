@@ -1,5 +1,5 @@
 /**
- * SkyDeck — app.js  v3.0
+ * SkyDeck — app.js  v1.0
  */
 
 const S = {
@@ -10,6 +10,11 @@ const S = {
   activeConvoId: null,
   cachedNotifs: [],
   statsRange: 'week',
+  navChordActive: false,
+  navChordTimer: null,
+  dmStartDid: null,
+  trendCategory: 'all',
+  searchComposing: false,
 };
 
 const QUICK_NOTE_KEY = 'skydeck_quick_note_v1';
@@ -18,9 +23,16 @@ const THEME_KEY = 'skydeck_theme_v1';
 const APP_MAX_IMAGE_BYTES = 1000000;
 const RIGHT_PANEL_PREFS_KEY = 'skydeck_right_panel_prefs_v1';
 const POST_HISTORY_KEY = 'skydeck_post_history_v1';
+const SEARCH_HISTORY_KEY = 'skydeck_search_history_v1';
+const COMPOSE_CACHE_KEY = 'skydeck_compose_cache_v1';
+const UI_PREFS_KEY = 'skydeck_ui_prefs_v1';
+const EXPERIENCE_PREFS_KEY = 'skydeck_experience_prefs_v1';
+const ACTIVITY_STATS_KEY = 'skydeck_activity_stats_v1';
+const HOME_PINNED_QUERY_KEY = 'skydeck_home_pinned_query_v1';
 const ADMIN_REPORT_HANDLE = 'rino-program.bsky.social';
 const LOGIN_CONSOLE_MAX_LINES = 200;
 const APP_MEMORY_STORAGE = new Map();
+const APP_FETCH_CACHE = new Map();
 
 function safeStorageGet(key) {
   try { return localStorage.getItem(key); }
@@ -36,6 +48,38 @@ function safeStorageSet(key, value) {
     APP_MEMORY_STORAGE.set(key, value);
     return false;
   }
+}
+
+function cacheKey(parts) {
+  return parts.map(v => String(v ?? '')).join('::');
+}
+
+function getCachedData(key, ttlMs) {
+  const hit = APP_FETCH_CACHE.get(key);
+  if (!hit) return null;
+  if ((Date.now() - hit.at) > ttlMs) {
+    APP_FETCH_CACHE.delete(key);
+    return null;
+  }
+  return hit.data;
+}
+
+async function fetchWithLocalCache(key, ttlMs, fetcher) {
+  const cached = getCachedData(key, ttlMs);
+  if (cached) return cached;
+  const data = await fetcher();
+  APP_FETCH_CACHE.set(key, { at: Date.now(), data });
+  return data;
+}
+
+function clearFetchCache(prefix = '') {
+  if (!prefix) {
+    APP_FETCH_CACHE.clear();
+    return;
+  }
+  [...APP_FETCH_CACHE.keys()].forEach(k => {
+    if (k.startsWith(prefix)) APP_FETCH_CACHE.delete(k);
+  });
 }
 
 function formatLogArg(v) {
@@ -104,16 +148,404 @@ async function init() {
   installLoginConsoleCapture();
   applySavedTheme();
   const sess = loadSession();
+  applySavedUiPrefs();
+  syncExperienceUi();
+  syncSubTabUi();
   if (sess) {
     S.session = sess;
     showApp();
     await loadMyProfile();
-    await loadTab('home');
+    restoreComposeCache();
+    const bootTab = getAdaptiveBootTab();
+    switchTab(bootTab);
+    await loadTab(bootTab);
     startNotifPoll();
   } else {
     showLogin();
+    const reason = typeof takeReloginReason === 'function' ? takeReloginReason() : '';
+    if (reason === 'storage_version_mismatch') {
+      const errEl = document.getElementById('login-error');
+      if (errEl) {
+        errEl.textContent = 'バージョン不一致を検出したため、安全のため再ログインしてください。';
+        errEl.classList.remove('hidden');
+      }
+    }
   }
+  renderSearchHistory();
+  renderComposeTemplates();
+  syncPinnedUi();
   bindAll();
+}
+
+function getUiPrefs() {
+  const base = { tab: 'home', homeSubTab: 'following', notifSubTab: 'all', searchTab: 'posts' };
+  try {
+    const raw = JSON.parse(safeStorageGet(UI_PREFS_KEY) || 'null');
+    if (!raw || typeof raw !== 'object') return base;
+    return {
+      tab: typeof raw.tab === 'string' ? raw.tab : base.tab,
+      homeSubTab: ['discover', 'following', 'pinned'].includes(raw.homeSubTab) ? raw.homeSubTab : 'following',
+      notifSubTab: raw.notifSubTab === 'mention' || raw.notifSubTab === 'unread' ? raw.notifSubTab : 'all',
+      searchTab: ['posts', 'users', 'latest', 'trends'].includes(raw.searchTab) ? raw.searchTab : 'posts',
+    };
+  } catch {
+    return base;
+  }
+}
+
+function getExperiencePrefs() {
+  const base = { japanMode: true, japanTrends: true, personalize: true };
+  try {
+    const raw = JSON.parse(safeStorageGet(EXPERIENCE_PREFS_KEY) || 'null');
+    if (!raw || typeof raw !== 'object') return base;
+    return {
+      japanMode: raw.japanMode !== false,
+      japanTrends: raw.japanTrends !== false,
+      personalize: raw.personalize !== false,
+    };
+  } catch {
+    return base;
+  }
+}
+
+function saveExperiencePrefs(next) {
+  safeStorageSet(EXPERIENCE_PREFS_KEY, JSON.stringify(next));
+}
+
+function syncExperienceUi() {
+  const p = getExperiencePrefs();
+  const japanMode = document.getElementById('settings-japan-mode');
+  const japanTrends = document.getElementById('settings-japan-trends');
+  const personalize = document.getElementById('settings-personalize');
+  if (japanMode) japanMode.checked = p.japanMode;
+  if (japanTrends) japanTrends.checked = p.japanTrends;
+  if (personalize) personalize.checked = p.personalize;
+}
+
+function handleExperienceSettingsChange() {
+  const next = {
+    japanMode: !!document.getElementById('settings-japan-mode')?.checked,
+    japanTrends: !!document.getElementById('settings-japan-trends')?.checked,
+    personalize: !!document.getElementById('settings-personalize')?.checked,
+  };
+  saveExperiencePrefs(next);
+  renderSearchHistory();
+  renderComposeTemplates();
+  if (S.tab === 'search' && S.searchTab === 'trends') execSearch('');
+}
+
+function getActivityStats() {
+  const base = { home: 0, search: 0, dm: 0, notifications: 0, profile: 0, posts: 0, updatedAt: Date.now() };
+  try {
+    const raw = JSON.parse(safeStorageGet(ACTIVITY_STATS_KEY) || 'null');
+    if (!raw || typeof raw !== 'object') return base;
+    return {
+      home: Number(raw.home || 0),
+      search: Number(raw.search || 0),
+      dm: Number(raw.dm || 0),
+      notifications: Number(raw.notifications || 0),
+      profile: Number(raw.profile || 0),
+      posts: Number(raw.posts || 0),
+      updatedAt: Number(raw.updatedAt || Date.now()),
+    };
+  } catch {
+    return base;
+  }
+}
+
+function incActivity(key) {
+  const s = getActivityStats();
+  if (typeof s[key] !== 'number') return;
+  s[key] += 1;
+  s.updatedAt = Date.now();
+  safeStorageSet(ACTIVITY_STATS_KEY, JSON.stringify(s));
+}
+
+function getAdaptiveBootTab() {
+  const exp = getExperiencePrefs();
+  if (!exp.personalize) return getBootTab();
+  const st = getActivityStats();
+  const entries = [
+    ['home', st.home],
+    ['search', st.search],
+    ['dm', st.dm],
+    ['notifications', st.notifications],
+    ['profile', st.profile],
+  ];
+  const total = entries.reduce((sum, [, v]) => sum + v, 0);
+  if (total < 10) return getBootTab();
+  entries.sort((a, b) => b[1] - a[1]);
+  return entries[0][0] || getBootTab();
+}
+
+function getPinnedHomeQuery() {
+  const raw = String(safeStorageGet(HOME_PINNED_QUERY_KEY) || '').trim();
+  return raw || 'Bluesky 日本';
+}
+
+function setPinnedHomeQuery(query) {
+  const q = String(query || '').trim().slice(0, 80);
+  safeStorageSet(HOME_PINNED_QUERY_KEY, q || 'Bluesky 日本');
+  syncPinnedUi();
+}
+
+function syncPinnedUi() {
+  const q = getPinnedHomeQuery();
+  const btn = document.getElementById('home-pinned-subtab');
+  const edit = document.getElementById('home-pinned-edit');
+  if (btn) btn.title = `固定検索: ${q}`;
+  if (edit) edit.title = `固定語を変更（現在: ${q}）`;
+}
+
+function openPinnedModal() {
+  const modal = document.getElementById('home-pinned-modal');
+  const inp = document.getElementById('home-pinned-input');
+  const st = document.getElementById('home-pinned-status');
+  if (inp) inp.value = getPinnedHomeQuery();
+  if (st) st.textContent = `現在: ${getPinnedHomeQuery()}`;
+  modal?.classList.remove('hidden');
+  inp?.focus();
+  inp?.select();
+}
+
+function closePinnedModal() {
+  document.getElementById('home-pinned-modal')?.classList.add('hidden');
+}
+
+function savePinnedModal() {
+  const inp = document.getElementById('home-pinned-input');
+  const q = String(inp?.value || '').trim();
+  if (!q) {
+    document.getElementById('home-pinned-status').textContent = '固定語を入力してください';
+    return;
+  }
+  setPinnedHomeQuery(q);
+  closePinnedModal();
+  if (S.homeSubTab === 'pinned') {
+    document.getElementById('home-feed').innerHTML = '';
+    loadHome();
+  }
+  showToast('固定検索ワードを保存しました', 'success');
+}
+
+function openSearchImeModal() {
+  const modal = document.getElementById('search-ime-modal');
+  const ta = document.getElementById('search-ime-text');
+  const inp = document.getElementById('search-input');
+  if (ta) ta.value = String(inp?.value || '');
+  modal?.classList.remove('hidden');
+  ta?.focus();
+}
+
+function closeSearchImeModal() {
+  document.getElementById('search-ime-modal')?.classList.add('hidden');
+}
+
+function applySearchImeInput() {
+  const ta = document.getElementById('search-ime-text');
+  const inp = document.getElementById('search-input');
+  const term = String(ta?.value || '').trim();
+  if (!inp) return;
+  inp.value = term;
+  closeSearchImeModal();
+  updateSearchClearButton();
+  if (term) execSearch(term);
+}
+
+function applyJapanSearchHint(term) {
+  const q = String(term || '').trim();
+  const exp = getExperiencePrefs();
+  if (!exp.japanMode || !q) return q;
+  if (/\blang\s*:/i.test(q)) return q;
+  return `${q} lang:ja`;
+}
+
+function isLikelyJapaneseTag(tag) {
+  return /[\u3040-\u30ff\u3400-\u9fff]/.test(String(tag || ''));
+}
+
+function getSmartSearchSuggestions() {
+  const exp = getExperiencePrefs();
+  if (!exp.personalize) return [];
+  const h = new Date().getHours();
+  const timeSet = h < 11 ? ['おはよう', '通勤', '朝ニュース'] : h < 18 ? ['ランチ', '仕事', '日本'] : ['お疲れさま', '夜ごはん', '今日の振り返り'];
+  const jpSet = exp.japanMode ? ['Bluesky日本', 'lang:ja'] : [];
+  return [...timeSet, ...jpSet].slice(0, 5);
+}
+
+function getComposeSmartTemplates() {
+  const h = new Date().getHours();
+  const exp = getExperiencePrefs();
+  const mood = h < 10
+    ? ['おはようございます。今日の目標は...', '朝の気になるニュース:', '通勤中メモ:']
+    : h < 18
+      ? ['作業ログ: ', '今の進捗: ', '学んだことメモ: ']
+      : ['今日の振り返り: ', 'おつかれさまでした。', '明日やること: '];
+  const jp = exp.japanMode ? ['日本の話題で気になったこと:', '#BlueskyJP'] : [];
+  return [...mood, ...jp].slice(0, 6);
+}
+
+function renderComposeTemplates() {
+  const host = document.getElementById('compose-template-list');
+  if (!host) return;
+  const list = getComposeSmartTemplates();
+  host.innerHTML = list.map(v => `<button class="compose-chip" data-compose-template="${escapeHtml(v)}">${escapeHtml(v)}</button>`).join('');
+}
+
+function applyComposeTemplate(text) {
+  const ta = document.getElementById('compose-text');
+  if (!ta) return;
+  const val = String(text || '').trim();
+  if (!val) return;
+  ta.value = ta.value ? `${ta.value}\n${val}`.slice(0, 320) : val.slice(0, 320);
+  updateCharCount();
+  cacheComposeState();
+  ta.focus();
+}
+
+function detectTrendCategory(tag) {
+  const s = String(tag || '').toLowerCase();
+  if (/news|速報|地震|選挙|政治|経済|事件/.test(s)) return 'news';
+  if (/tech|ai|dev|program|開発|技術|python|javascript/.test(s)) return 'tech';
+  if (/anime|music|movie|ドラマ|アニメ|ゲーム|配信/.test(s)) return 'ent';
+  if (/料理|ごはん|子育て|暮らし|健康|旅行|日記/.test(s)) return 'life';
+  return 'all';
+}
+
+function setTrendCategory(cat) {
+  S.trendCategory = ['all', 'news', 'tech', 'ent', 'life'].includes(cat) ? cat : 'all';
+  document.querySelectorAll('#trend-category-tabs [data-trend-cat]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.trendCat === S.trendCategory);
+  });
+  if (S.searchTab === 'trends') execSearch('');
+}
+
+function getDmIncomingPolicy(profile) {
+  return String(profile?.associated?.chat?.allowIncoming || '').toLowerCase();
+}
+
+function canStartDmWithProfile(profile) {
+  if (!profile?.did || profile.did === S.session?.did) return false;
+  const policy = getDmIncomingPolicy(profile);
+  if (!policy || policy === 'none') return false;
+  if (policy === 'all') return true;
+  if (policy === 'following') return !!profile.viewer?.followedBy;
+  if (policy === 'mutuals') return !!profile.viewer?.followedBy && !!profile.viewer?.following;
+  return false;
+}
+
+function saveUiPrefs() {
+  const next = {
+    tab: S.tab,
+    homeSubTab: S.homeSubTab,
+    notifSubTab: S.notifSubTab,
+    searchTab: S.searchTab,
+  };
+  safeStorageSet(UI_PREFS_KEY, JSON.stringify(next));
+}
+
+function applySavedUiPrefs() {
+  const p = getUiPrefs();
+  S.tab = p.tab;
+  S.homeSubTab = p.homeSubTab;
+  S.notifSubTab = p.notifSubTab;
+  S.searchTab = p.searchTab;
+}
+
+function syncSubTabUi() {
+  document.querySelectorAll('#tab-home .sub-tab').forEach(b => b.classList.toggle('active', b.dataset.sub === S.homeSubTab));
+  document.querySelectorAll('#tab-notifications .sub-tab').forEach(b => b.classList.toggle('active', b.dataset.sub === S.notifSubTab));
+  document.querySelectorAll('#tab-search .sub-tab').forEach(b => b.classList.toggle('active', b.dataset.sub === S.searchTab));
+}
+
+function getBootTab() {
+  const allowed = new Set(['home', 'notifications', 'search', 'dm', 'lists', 'profile', 'settings']);
+  return allowed.has(S.tab) ? S.tab : 'home';
+}
+
+function cacheComposeState() {
+  const ta = document.getElementById('compose-text');
+  const restriction = document.getElementById('reply-restriction');
+  if (!ta || !restriction) return;
+  const payload = {
+    text: ta.value || '',
+    restriction: restriction.value || 'everybody',
+    ts: Date.now(),
+  };
+  safeStorageSet(COMPOSE_CACHE_KEY, JSON.stringify(payload));
+}
+
+function restoreComposeCache() {
+  const ta = document.getElementById('compose-text');
+  const restriction = document.getElementById('reply-restriction');
+  if (!ta || !restriction) return;
+  try {
+    const raw = JSON.parse(safeStorageGet(COMPOSE_CACHE_KEY) || 'null');
+    if (!raw || typeof raw !== 'object') return;
+    const txt = String(raw.text || '').slice(0, 320);
+    if (txt) {
+      ta.value = txt;
+      showToast('前回の入力を復元しました', 'info', 2400);
+    }
+    if (typeof raw.restriction === 'string') restriction.value = raw.restriction;
+    updateCharCount();
+  } catch {}
+}
+
+function clearComposeCache() {
+  safeStorageSet(COMPOSE_CACHE_KEY, JSON.stringify({ text: '', restriction: 'everybody', ts: Date.now() }));
+}
+
+function getSearchHistory() {
+  try {
+    const raw = JSON.parse(safeStorageGet(SEARCH_HISTORY_KEY) || '[]');
+    if (!Array.isArray(raw)) return [];
+    return raw.filter(v => typeof v === 'string' && v.trim()).map(v => v.trim()).slice(0, 8);
+  } catch {
+    return [];
+  }
+}
+
+function saveSearchHistoryItem(q) {
+  const text = String(q || '').trim();
+  if (!text) return;
+  const curr = getSearchHistory();
+  const next = [text, ...curr.filter(v => v !== text)].slice(0, 8);
+  safeStorageSet(SEARCH_HISTORY_KEY, JSON.stringify(next));
+  renderSearchHistory();
+}
+
+function clearSearchHistory() {
+  safeStorageSet(SEARCH_HISTORY_KEY, JSON.stringify([]));
+  renderSearchHistory();
+}
+
+function renderSearchHistory() {
+  const wrap = document.getElementById('search-recent-wrap');
+  const list = document.getElementById('search-recent-list');
+  if (!wrap || !list) return;
+  const q = (document.getElementById('search-input')?.value || '').trim();
+  const hist = getSearchHistory();
+  const smart = getSmartSearchSuggestions();
+  if ((!hist.length && !smart.length) || q) {
+    wrap.classList.add('hidden');
+    list.innerHTML = '';
+    return;
+  }
+  wrap.classList.remove('hidden');
+  const histHtml = hist.map(item => `<button class="search-chip" data-search-item="${escapeHtml(item)}">${escapeHtml(item)}</button>`).join('');
+  const smartHtml = smart
+    .filter(item => !hist.includes(item))
+    .map(item => `<button class="search-chip smart" data-search-item="${escapeHtml(item)}">おすすめ: ${escapeHtml(item)}</button>`)
+    .join('');
+  list.innerHTML = `${smartHtml}${histHtml}`;
+}
+
+function updateSearchClearButton() {
+  const q = (document.getElementById('search-input')?.value || '').trim();
+  const btn = document.getElementById('search-clear-btn');
+  if (!btn) return;
+  btn.classList.toggle('hidden', !q);
 }
 
 function showLogin() {
@@ -261,6 +693,7 @@ function insertIntoCompose(textToInsert) {
   const next = ta.value ? `${ta.value}\n${add}` : add;
   ta.value = next.slice(0, 320);
   updateCharCount();
+  cacheComposeState();
   switchTab('home');
   document.getElementById('compose-area')?.scrollIntoView({ behavior: 'smooth' });
   ta.focus();
@@ -283,6 +716,7 @@ function quickClearCompose() {
   if (!ta) return;
   ta.value = '';
   updateCharCount();
+  cacheComposeState();
 }
 
 function switchInsightRange(range) {
@@ -453,6 +887,8 @@ async function loadMyProfile() {
 // =============================================
 function switchTab(tab) {
   S.tab = tab;
+  if (['home', 'search', 'dm', 'notifications', 'profile'].includes(tab)) incActivity(tab);
+  saveUiPrefs();
   document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.tab-section').forEach(s => {
     const isActive = s.id === `tab-${tab}`;
@@ -460,6 +896,12 @@ function switchTab(tab) {
     s.classList.toggle('hidden', !isActive);
   });
   if (tab === 'notifications') { document.getElementById('notif-badge').classList.add('hidden'); apiUpdateNotificationSeen(); }
+  if (tab === 'search') {
+    updateSearchClearButton();
+    renderSearchHistory();
+    document.getElementById('trend-category-tabs')?.classList.toggle('hidden', S.searchTab !== 'trends');
+    if (S.searchTab === 'trends') execSearch('');
+  }
   const feedIds = { home:'home-feed', notifications:'notif-feed', search:'search-feed', dm:'dm-list', lists:'lists-feed', profile:'profile-feed' };
   const feedId = feedIds[tab];
   if (feedId && document.getElementById(feedId)?.childElementCount === 0) loadTab(tab);
@@ -470,7 +912,7 @@ async function loadTab(tab) {
   try {
     if (tab === 'home')          await loadHome();
     else if (tab === 'notifications') await loadNotifications();
-    else if (tab === 'search')   { /* 検索は手動入力で動作 */ }
+    else if (tab === 'search')   { if (S.searchTab === 'trends') await execSearch(''); }
     else if (tab === 'profile')  await loadProfile();
     else if (tab === 'lists')    await loadLists();
     else if (tab === 'dm')       await loadDM();
@@ -494,18 +936,29 @@ async function loadHome() {
   const feed = document.getElementById('home-feed');
   feed.innerHTML = renderSpinner();
   let data;
-  if (S.homeSubTab === 'discover') data = await withAuth(() => apiGetDiscover(null));
-  else data = await withAuth(() => apiGetTimeline(null));
+  const key = cacheKey(['home', S.homeSubTab, 'first', getPinnedHomeQuery()]);
+  if (S.homeSubTab === 'discover') data = await fetchWithLocalCache(key, 20000, () => withAuth(() => apiGetDiscover(null)));
+  else if (S.homeSubTab === 'pinned') {
+    const q = applyJapanSearchHint(getPinnedHomeQuery());
+    data = await fetchWithLocalCache(key, 20000, () => withAuth(() => apiSearchPosts(q, null, 'latest')));
+  }
+  else data = await fetchWithLocalCache(key, 20000, () => withAuth(() => apiGetTimeline(null)));
   S.cursors['home'] = data.cursor || null;
   feed.innerHTML = '';
-  if (!data.feed?.length) { feed.innerHTML = renderEmpty('タイムラインに投稿がありません'); return; }
+  const rows = S.homeSubTab === 'pinned' ? (data.posts || []).map(p => ({ post: p })) : (data.feed || []);
+  if (!rows.length) {
+    const msg = S.homeSubTab === 'pinned' ? `固定検索「${escapeHtml(getPinnedHomeQuery())}」に一致する投稿がありません` : 'タイムラインに投稿がありません';
+    feed.innerHTML = renderEmpty(msg);
+    return;
+  }
   const myDid = S.session?.did;
-  data.feed.forEach(item => appendCards(feed, renderPostCard(item, myDid)));
+  rows.forEach(item => appendCards(feed, renderPostCard(item, myDid)));
   if (data.cursor) addLoadMoreBtn(feed, 'home');
 }
 
 function switchHomeSubTab(sub) {
   S.homeSubTab = sub; S.cursors['home'] = null;
+  saveUiPrefs();
   document.querySelectorAll('#tab-home .sub-tab').forEach(b => b.classList.toggle('active', b.dataset.sub === sub));
   document.getElementById('home-feed').innerHTML = '';
   loadTab('home');
@@ -517,7 +970,7 @@ function switchHomeSubTab(sub) {
 async function loadNotifications() {
   const feed = document.getElementById('notif-feed');
   feed.innerHTML = renderSpinner();
-  const data = await withAuth(() => apiGetNotifications(null));
+  const data = await fetchWithLocalCache(cacheKey(['notifications', 'first']), 12000, () => withAuth(() => apiGetNotifications(null)));
   S.cachedNotifs = data.notifications || [];
   S.cursors['notifications'] = data.cursor || null;
   renderNotifList();
@@ -525,6 +978,7 @@ async function loadNotifications() {
 
 function switchNotifSubTab(sub) {
   S.notifSubTab = sub;
+  saveUiPrefs();
   document.querySelectorAll('#tab-notifications .sub-tab').forEach(b => b.classList.toggle('active', b.dataset.sub === sub));
   renderNotifList();
 }
@@ -533,6 +987,7 @@ function renderNotifList() {
   const feed = document.getElementById('notif-feed');
   feed.innerHTML = '';
   let list = S.cachedNotifs;
+  if (S.notifSubTab === 'unread') list = list.filter(n => !n.isRead);
   if (S.notifSubTab === 'mention') list = list.filter(n => n.reason === 'mention' || n.reason === 'reply');
   if (!list.length) { feed.innerHTML = renderEmpty('通知はありません'); return; }
   list.forEach(n => appendCards(feed, renderNotifCard(n)));
@@ -546,7 +1001,7 @@ async function loadProfile() {
   const feed = document.getElementById('profile-feed');
   feed.innerHTML = renderSpinner();
   const actor = S.myProfile?.handle || S.session?.handle;
-  const data = await withAuth(() => apiGetAuthorFeed(actor, 'posts_no_replies', null));
+  const data = await fetchWithLocalCache(cacheKey(['profile', actor, 'first']), 30000, () => withAuth(() => apiGetAuthorFeed(actor, 'posts_no_replies', null)));
   S.cursors['profile'] = data.cursor || null;
   feed.innerHTML = '';
   if (!data.feed?.length) { feed.innerHTML = renderEmpty('投稿がありません'); return; }
@@ -566,7 +1021,8 @@ async function openUserProfile(handleOrDid) {
 
   try {
     const profile = await withAuth(() => apiGetProfile(handleOrDid));
-    content.innerHTML = renderProfilePanel(profile);
+    const canDm = canStartDmWithProfile(profile);
+    content.innerHTML = renderProfilePanel(profile, { canDm });
 
     // 投稿を読み込む
     const feedEl = document.getElementById('user-profile-feed');
@@ -581,6 +1037,70 @@ async function openUserProfile(handleOrDid) {
   } catch(e) {
     content.innerHTML = renderEmpty(`プロフィールの取得に失敗しました: ${e.message}`);
   }
+}
+
+async function startDmWithDid(did) {
+  const targetDid = String(did || '').trim();
+  if (!targetDid) return;
+  try {
+    const data = await withAuth(() => apiGetOrCreateConvoWithMember(targetDid));
+    const convoId = data?.convo?.id || data?.convoId;
+    if (!convoId) throw new Error('DM会話の作成に失敗しました');
+    switchTab('dm');
+    await loadDM();
+    await openConvo(convoId);
+    showToast('DMを開始しました', 'success');
+  } catch (e) {
+    showToast(e.message || 'DM開始に失敗しました', 'error');
+  }
+}
+
+function openDmStartModal() {
+  const modal = document.getElementById('dm-start-modal');
+  const input = document.getElementById('dm-start-handle');
+  const status = document.getElementById('dm-start-status');
+  S.dmStartDid = null;
+  if (status) status.textContent = '';
+  if (input) input.value = '';
+  modal?.classList.remove('hidden');
+  input?.focus();
+}
+
+function closeDmStartModal() {
+  document.getElementById('dm-start-modal')?.classList.add('hidden');
+}
+
+async function resolveDmStartHandle() {
+  const input = document.getElementById('dm-start-handle');
+  const status = document.getElementById('dm-start-status');
+  const raw = String(input?.value || '').replace(/^@/, '').trim();
+  S.dmStartDid = null;
+  if (!raw) {
+    if (status) status.textContent = 'ハンドルを入力してください';
+    return null;
+  }
+  if (status) status.textContent = '確認中...';
+  let profile;
+  try {
+    profile = await withAuth(() => apiGetProfile(raw));
+  } catch (e) {
+    if (status) status.textContent = e.message || 'ユーザー取得に失敗しました';
+    return null;
+  }
+  if (!canStartDmWithProfile(profile)) {
+    if (status) status.textContent = 'このユーザーは新規DMに対応していません';
+    return null;
+  }
+  S.dmStartDid = profile.did;
+  if (status) status.textContent = `開始可能: @${profile.handle}`;
+  return profile.did;
+}
+
+async function submitDmStart() {
+  const did = S.dmStartDid || await resolveDmStartHandle();
+  if (!did) return;
+  closeDmStartModal();
+  await startDmWithDid(did);
 }
 
 function closeUserProfile() {
@@ -713,7 +1233,7 @@ async function sendDM() {
   const text = inp.value.trim();
   if (!text || !S.activeConvoId) return;
   inp.value = '';
-  try { await withAuth(() => apiSendMessage(S.activeConvoId, text)); await openConvo(S.activeConvoId); }
+  try { await withAuth(() => apiSendMessage(S.activeConvoId, text)); incActivity('dm'); await openConvo(S.activeConvoId); }
   catch(e) { showToast(e.message, 'error'); }
 }
 
@@ -723,33 +1243,78 @@ async function sendDM() {
 let searchTimer = null;
 function handleSearchInput(q) {
   clearTimeout(searchTimer);
-  if (!q.trim()) { document.getElementById('search-feed').innerHTML = ''; return; }
+  updateSearchClearButton();
+  if (!q.trim()) {
+    document.getElementById('search-feed').innerHTML = '';
+    renderSearchHistory();
+    return;
+  }
+  renderSearchHistory();
   searchTimer = setTimeout(() => execSearch(q.trim()), 500);
 }
 
 function switchSearchTab(sub) {
   S.searchTab = sub;
+  saveUiPrefs();
   document.querySelectorAll('#tab-search .sub-tab').forEach(b => b.classList.toggle('active', b.dataset.sub === sub));
+  document.getElementById('trend-category-tabs')?.classList.toggle('hidden', sub !== 'trends');
   const q = document.getElementById('search-input').value.trim();
+  if (sub === 'trends') {
+    execSearch('');
+    return;
+  }
   if (q) execSearch(q);
 }
 
 async function execSearch(q) {
+  const term = String(q || '').trim();
+  if (!term && S.searchTab !== 'trends') return;
   const feed = document.getElementById('search-feed');
   feed.innerHTML = renderSpinner();
   try {
-    if (S.searchTab === 'posts') {
-      const data = await withAuth(() => apiSearchPosts(q, null));
+    if (S.searchTab === 'posts' || S.searchTab === 'latest') {
+      const sort = S.searchTab === 'latest' ? 'latest' : 'top';
+      const query = applyJapanSearchHint(term);
+      const data = await fetchWithLocalCache(cacheKey(['search-posts', sort, query]), 20000, () => withAuth(() => apiSearchPosts(query, null, sort)));
       feed.innerHTML = '';
       if (!data.posts?.length) { feed.innerHTML = renderEmpty('投稿が見つかりません'); return; }
       const myDid = S.session?.did;
       data.posts.forEach(p => appendCards(feed, renderPostCard({ post: p }, myDid)));
-    } else {
-      const data = await withAuth(() => apiSearchActors(q, null));
+      incActivity('search');
+    } else if (S.searchTab === 'users') {
+      const data = await fetchWithLocalCache(cacheKey(['search-users', term]), 20000, () => withAuth(() => apiSearchActors(term, null)));
       feed.innerHTML = '';
       if (!data.actors?.length) { feed.innerHTML = renderEmpty('ユーザーが見つかりません'); return; }
-      data.actors.forEach(a => appendCards(feed, renderUserCard(a, true)));
+      data.actors.forEach(a => appendCards(feed, renderUserCard(a, true, canStartDmWithProfile(a))));
+      incActivity('search');
+    } else if (S.searchTab === 'trends') {
+      const data = await fetchWithLocalCache(cacheKey(['trends', 'base']), 20000, () => withAuth(() => apiGetTrendingTopics(30)));
+      const rawTopics = data?.topics || data?.trends || [];
+      const exp = getExperiencePrefs();
+      let topics = rawTopics;
+      if (exp.japanTrends) {
+        const jp = rawTopics.filter(t => isLikelyJapaneseTag(t.topic || t.name || t.tag || ''));
+        topics = jp.length ? jp : rawTopics;
+      }
+      if (S.trendCategory !== 'all') {
+        topics = topics.filter(t => detectTrendCategory(t.topic || t.name || t.tag || '') === S.trendCategory);
+      }
+      feed.innerHTML = '';
+      if (!topics.length) { feed.innerHTML = renderEmpty('トレンドが見つかりません'); return; }
+      topics.forEach(t => {
+        const tag = String(t.topic || t.name || t.tag || '').replace(/^#?/, '#');
+        const count = Number(t.postCount || t.posts || 0);
+        const score = Number(t.displayName || t.score || 0);
+        appendCards(feed, `<div class="trend-card">
+          <div class="trend-main">
+            <div class="trend-tag">${escapeHtml(tag || '#trend')}</div>
+            <div class="trend-meta">${count > 0 ? `${count.toLocaleString()} posts` : ''}${score > 0 ? ` ・ score ${score}` : ''}</div>
+          </div>
+          <button class="btn-sm" data-trend-tag="${escapeHtml(tag.replace(/^#/, ''))}">検索</button>
+        </div>`);
+      });
     }
+    if (term) saveSearchHistoryItem(term);
   } catch(e) { feed.innerHTML = renderEmpty(e.message); }
 }
 
@@ -887,7 +1452,11 @@ async function handlePost() {
   try {
     await withAuth(() => apiPost(text, S.pendingImgs, S.replyTarget, restriction));
     logPostActivity(text, S.pendingImgs.length);
+    clearFetchCache('home::');
+    clearFetchCache('profile::');
+    incActivity('posts');
     ta.value = ''; S.pendingImgs = []; renderPreviews(); cancelReply(); updateCharCount();
+    clearComposeCache();
     showToast('投稿しました！', 'success');
     reloadTab('home');
     if (S.tab === 'profile') reloadTab('profile');
@@ -937,6 +1506,9 @@ async function handleQuickPost() {
   try {
     await withAuth(() => apiPost(text, S.quickPendingImgs, null, restriction));
     logPostActivity(text, S.quickPendingImgs.length);
+    clearFetchCache('home::');
+    clearFetchCache('profile::');
+    incActivity('posts');
     closeQuickPostModal();
     showToast('投稿しました！', 'success');
     await reloadTab('home');
@@ -1047,6 +1619,7 @@ function insertQuickNoteToCompose() {
   const next = ta.value ? `${ta.value}\n${note}` : note;
   ta.value = next.slice(0, 320);
   updateCharCount();
+  cacheComposeState();
   switchTab('home');
   document.getElementById('compose-area')?.scrollIntoView({ behavior: 'smooth' });
   ta.focus();
@@ -1078,6 +1651,7 @@ function saveDraftAndClear() {
   saveDraft(text);
   document.getElementById('compose-text').value = '';
   updateCharCount();
+  cacheComposeState();
   showToast('下書きを保存しました', 'success');
 }
 
@@ -1212,9 +1786,12 @@ async function handleLoadMore(btn) {
     if (tab === 'home') {
       const data = S.homeSubTab === 'discover'
         ? await withAuth(() => apiGetDiscover(cursor))
-        : await withAuth(() => apiGetTimeline(cursor));
+        : S.homeSubTab === 'pinned'
+          ? await withAuth(() => apiSearchPosts(applyJapanSearchHint(getPinnedHomeQuery()), cursor, 'latest'))
+          : await withAuth(() => apiGetTimeline(cursor));
       btn.remove();
-      data.feed?.forEach(i => appendCards(feed, renderPostCard(i, myDid)));
+      const rows = S.homeSubTab === 'pinned' ? (data.posts || []).map(p => ({ post: p })) : (data.feed || []);
+      rows.forEach(i => appendCards(feed, renderPostCard(i, myDid)));
       S.cursors[tab] = data.cursor || null;
       if (data.cursor) addLoadMoreBtn(feed, tab);
     } else if (tab === 'profile') {
@@ -1254,10 +1831,112 @@ function stopNotifPoll()  { clearInterval(notifInterval); notifInterval = null; 
 
 function handleLogout() {
   clearSession(); S.session = null; S.myProfile = null;
+  clearComposeCache();
+  clearFetchCache();
   stopNotifPoll();
   document.querySelectorAll('.feed').forEach(f => f.innerHTML = '');
   Object.keys(S.cursors).forEach(k => delete S.cursors[k]);
   showLogin();
+}
+
+function openShortcutsModal() {
+  document.getElementById('shortcuts-modal')?.classList.remove('hidden');
+}
+
+function closeShortcutsModal() {
+  document.getElementById('shortcuts-modal')?.classList.add('hidden');
+}
+
+function isTypingTarget(target) {
+  if (!target) return false;
+  const tag = String(target.tagName || '').toLowerCase();
+  return target.isContentEditable || tag === 'input' || tag === 'textarea' || tag === 'select';
+}
+
+function focusSearchInput() {
+  switchTab('search');
+  const el = document.getElementById('search-input');
+  if (!el) return;
+  el.focus();
+  el.select();
+}
+
+function focusComposeInput() {
+  switchTab('home');
+  const el = document.getElementById('compose-text');
+  if (!el) return;
+  document.getElementById('compose-area')?.scrollIntoView({ behavior: 'smooth' });
+  el.focus();
+}
+
+function startNavChord() {
+  S.navChordActive = true;
+  clearTimeout(S.navChordTimer);
+  S.navChordTimer = setTimeout(() => {
+    S.navChordActive = false;
+  }, 1500);
+}
+
+function consumeNavChord(key) {
+  const map = {
+    h: 'home',
+    n: 'notifications',
+    s: 'search',
+    d: 'dm',
+    l: 'lists',
+    p: 'profile',
+    t: 'settings',
+  };
+  const tab = map[key];
+  if (!tab) return false;
+  switchTab(tab);
+  S.navChordActive = false;
+  return true;
+}
+
+function handleGlobalKeydown(e) {
+  const key = String(e.key || '').toLowerCase();
+  const typing = isTypingTarget(e.target);
+
+  if (e.key === 'Escape') {
+    closeShortcutsModal();
+    if (!document.getElementById('quick-post-modal')?.classList.contains('hidden')) closeQuickPostModal();
+    return;
+  }
+
+  if ((e.ctrlKey || e.metaKey) && key === 'k') {
+    e.preventDefault();
+    focusSearchInput();
+    return;
+  }
+
+  if (!typing && key === '?') {
+    e.preventDefault();
+    openShortcutsModal();
+    return;
+  }
+
+  if (!typing && key === '/') {
+    e.preventDefault();
+    focusSearchInput();
+    return;
+  }
+
+  if (!typing && key === 'c') {
+    e.preventDefault();
+    focusComposeInput();
+    return;
+  }
+
+  if (!typing && key === 'g') {
+    e.preventDefault();
+    startNavChord();
+    return;
+  }
+
+  if (!typing && S.navChordActive && consumeNavChord(key)) {
+    e.preventDefault();
+  }
 }
 
 // =============================================
@@ -1289,11 +1968,51 @@ function bindAll() {
 
   // 検索
   document.getElementById('search-input').addEventListener('input', e => handleSearchInput(e.target.value));
-  document.getElementById('search-input').addEventListener('keydown', e => { if (e.key === 'Enter') execSearch(e.target.value.trim()); });
+  document.getElementById('search-input').addEventListener('compositionstart', () => { S.searchComposing = true; });
+  document.getElementById('search-input').addEventListener('compositionend', e => {
+    S.searchComposing = false;
+    handleSearchInput(e.target.value);
+  });
+  document.getElementById('search-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !S.searchComposing && !e.isComposing) execSearch(e.target.value.trim());
+  });
+  document.getElementById('search-input').addEventListener('focus', renderSearchHistory);
+  document.getElementById('search-ime-helper')?.addEventListener('click', openSearchImeModal);
+  document.getElementById('search-clear-btn')?.addEventListener('click', () => {
+    const inp = document.getElementById('search-input');
+    const feed = document.getElementById('search-feed');
+    if (!inp || !feed) return;
+    inp.value = '';
+    feed.innerHTML = '';
+    updateSearchClearButton();
+    renderSearchHistory();
+    inp.focus();
+  });
+  document.getElementById('search-recent-clear')?.addEventListener('click', clearSearchHistory);
+  document.getElementById('search-ime-cancel')?.addEventListener('click', closeSearchImeModal);
+  document.getElementById('search-ime-apply')?.addEventListener('click', applySearchImeInput);
+  document.getElementById('search-ime-modal')?.addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeSearchImeModal();
+  });
+  document.querySelectorAll('#trend-category-tabs [data-trend-cat]').forEach(btn => {
+    btn.addEventListener('click', () => setTrendCategory(btn.dataset.trendCat));
+  });
+  document.getElementById('compose-template-refresh')?.addEventListener('click', renderComposeTemplates);
+  document.getElementById('home-pinned-edit')?.addEventListener('click', openPinnedModal);
+  document.getElementById('home-pinned-cancel')?.addEventListener('click', closePinnedModal);
+  document.getElementById('home-pinned-save')?.addEventListener('click', savePinnedModal);
+  document.getElementById('home-pinned-input')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') savePinnedModal();
+  });
+  document.getElementById('home-pinned-modal')?.addEventListener('click', e => {
+    if (e.target === e.currentTarget) closePinnedModal();
+  });
 
   // compose
   document.getElementById('compose-text').addEventListener('input', updateCharCount);
   document.getElementById('compose-text').addEventListener('input', refreshRightStats);
+  document.getElementById('compose-text').addEventListener('input', cacheComposeState);
+  document.getElementById('reply-restriction').addEventListener('change', cacheComposeState);
   document.getElementById('compose-text').addEventListener('keydown', e => { if ((e.metaKey||e.ctrlKey) && e.key === 'Enter') handlePost(); });
   document.getElementById('image-input').addEventListener('change', handleImageSelect);
   document.getElementById('quick-post-image-input')?.addEventListener('change', handleQuickImageSelect);
@@ -1334,9 +2053,18 @@ function bindAll() {
   document.getElementById('delete-confirm-btn').addEventListener('click', confirmDelete);
 
   // DM
+  document.getElementById('dm-start-btn')?.addEventListener('click', openDmStartModal);
   document.getElementById('dm-send-btn').addEventListener('click', sendDM);
   document.getElementById('dm-input').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendDM(); } });
   document.getElementById('dm-back-btn').addEventListener('click', () => document.getElementById('dm-chat-panel').classList.add('hidden'));
+  document.getElementById('dm-start-cancel')?.addEventListener('click', closeDmStartModal);
+  document.getElementById('dm-start-submit')?.addEventListener('click', submitDmStart);
+  document.getElementById('dm-start-handle')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') submitDmStart();
+  });
+  document.getElementById('dm-start-modal')?.addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeDmStartModal();
+  });
 
   // リストバック
   document.getElementById('list-back-btn').addEventListener('click', () => document.getElementById('list-feed-container').classList.add('hidden'));
@@ -1345,7 +2073,11 @@ function bindAll() {
   document.getElementById('settings-logout-btn')?.addEventListener('click', handleLogout);
   document.getElementById('theme-toggle-btn')?.addEventListener('click', toggleThemeMode);
   document.getElementById('settings-show-control-deck')?.addEventListener('change', onSettingsControlDeckChange);
+  document.getElementById('settings-japan-mode')?.addEventListener('change', handleExperienceSettingsChange);
+  document.getElementById('settings-japan-trends')?.addEventListener('change', handleExperienceSettingsChange);
+  document.getElementById('settings-personalize')?.addEventListener('change', handleExperienceSettingsChange);
   document.getElementById('settings-report-admin-btn')?.addEventListener('click', reportToAdmin);
+  document.getElementById('settings-shortcuts-btn')?.addEventListener('click', openShortcutsModal);
 
   // プロフィール編集
   document.getElementById('profile-save-btn').addEventListener('click', handleProfileSave);
@@ -1361,10 +2093,15 @@ function bindAll() {
   document.getElementById('user-profile-panel')?.addEventListener('click', e => {
     if (e.target === e.currentTarget) closeUserProfile();
   });
+  document.getElementById('shortcuts-close-btn')?.addEventListener('click', closeShortcutsModal);
+  document.getElementById('shortcuts-modal')?.addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeShortcutsModal();
+  });
 
   // 委任クリック（フィード内全て）
   document.addEventListener('click', handleDelegatedClick);
   document.addEventListener('click', handleExternalLinkGuard, true);
+  document.addEventListener('keydown', handleGlobalKeydown);
 }
 
 async function handleLogin() {
@@ -1379,8 +2116,13 @@ async function handleLogin() {
     const sess = await apiLogin(handle, pass);
     saveSession(sess); S.session = sess;
     showApp();
+    syncSubTabUi();
+    syncExperienceUi();
     await loadMyProfile();
-    await loadTab('home');
+    restoreComposeCache();
+    const bootTab = getAdaptiveBootTab();
+    switchTab(bootTab);
+    await loadTab(bootTab);
     startNotifPoll();
     document.getElementById('login-password').value = '';
   } catch(e) {
@@ -1522,6 +2264,58 @@ async function handleLoginConnectivityCheck() {
 //  委任クリックハンドラー（全フィード共通）
 // =============================================
 function handleDelegatedClick(e) {
+  const hashLink = e.target.closest('[data-hashtag-search]');
+  if (hashLink) {
+    e.preventDefault();
+    const tag = String(hashLink.dataset.hashtagSearch || '').trim();
+    const term = tag ? `#${tag.replace(/^#/, '')}` : '';
+    if (term) {
+      const inp = document.getElementById('search-input');
+      if (inp) inp.value = term;
+      switchTab('search');
+      switchSearchTab('latest');
+      updateSearchClearButton();
+      execSearch(term);
+    }
+    return;
+  }
+
+    const composeChip = e.target.closest('[data-compose-template]');
+    if (composeChip) {
+      applyComposeTemplate(composeChip.dataset.composeTemplate);
+      return;
+    }
+
+  const dmStartBtn = e.target.closest('[data-dm-start-did]');
+  if (dmStartBtn) {
+    startDmWithDid(dmStartBtn.dataset.dmStartDid);
+    return;
+  }
+
+  const trendBtn = e.target.closest('[data-trend-tag]');
+  if (trendBtn) {
+    const term = String(trendBtn.dataset.trendTag || '').trim();
+    const inp = document.getElementById('search-input');
+    if (term && inp) {
+      inp.value = term;
+      switchSearchTab('latest');
+      updateSearchClearButton();
+      execSearch(term);
+    }
+    return;
+  }
+
+  const searchChip = e.target.closest('[data-search-item]');
+  if (searchChip) {
+    const q = searchChip.dataset.searchItem || '';
+    const inp = document.getElementById('search-input');
+    if (inp && q) {
+      inp.value = q;
+      updateSearchClearButton();
+      execSearch(q);
+    }
+    return;
+  }
   // 返信ボタン
   const replyBtn = e.target.closest('.reply-btn');
   if (replyBtn) {
@@ -1596,6 +2390,7 @@ function handleDelegatedClick(e) {
     if (draftBtn.dataset.draftAction === 'use' && draft) {
       document.getElementById('compose-text').value = draft.text;
       updateCharCount();
+      cacheComposeState();
       document.getElementById('drafts-panel').classList.add('hidden');
     } else if (draftBtn.dataset.draftAction === 'del') {
       deleteDraft(+draftBtn.dataset.draftId);

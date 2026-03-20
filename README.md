@@ -1,87 +1,122 @@
-# SkyDeck 🌤
-BlueskyのWebクライアント。GitHub Pagesで無料ホスティング。
+# SkyDeck
 
-## ✨ 機能一覧
-- 🏠 **ホームTL** — フォロー中ユーザーの投稿
-- 👤 **自分の投稿** — 自分の過去投稿一覧
-- 🔔 **通知** — いいね・返信・フォロー通知（30秒ポーリング）
-- 👥 **フォロー中** — フォロー中ユーザー一覧
-- ✍️ **投稿** — テキスト投稿（300文字）、画像最大4枚
-- 💬 **返信** — 投稿への返信
-- 🗑️ **削除** — 自分の投稿を削除
-- 🔗 リンク・メンション・ハッシュタグのリッチテキスト表示
+SkyDeck は AT Protocol (Bluesky) 向けの静的 Web クライアントです。
+ビルド不要で GitHub Pages にそのまま公開できます。
 
-## 🚀 GitHub Pagesへのデプロイ手順
+## 機能
 
-### 1. リポジトリを作成する
-GitHubで新しいリポジトリを作成します（Public推奨）。
+- ホームタイムライン（Following / Discover）
+- 通知（30秒ポーリング）
+- 投稿 / 返信 / 引用 / 削除
+- 画像投稿（最大4枚、1枚あたり 1MB 制限）
+- 検索（投稿 / ユーザー）
+- DM 一覧 / チャット
+- リスト表示
+- プロフィール編集（表示名、自己紹介、アバター、バナー）
+- 下書き保存
+- クイック投稿モーダル
+- 右下 Control Deck（表示カスタマイズ、ミニ分析、ノート、完全ミニ）
+- ログイン画面の接続診断とログ表示
 
-### 2. ファイルをプッシュする
+## 動作環境
+
+- 最新の Chrome / Edge / Safari / Firefox
+- JavaScript 有効
+- HTTPS 配信（GitHub Pages 推奨）
+
+## クイックスタート
+
 ```bash
-git init
-git add .
-git commit -m "Initial commit: SkyDeck"
-git remote add origin https://github.com/あなたのユーザー名/リポジトリ名.git
-git branch -M main
-git push -u origin main
+git clone https://github.com/Rino-program/skydeck.git
+cd skydeck
 ```
 
-### 3. GitHub Pagesを有効にする
-1. リポジトリの「Settings」タブを開く
-2. 左メニューの「Pages」をクリック
-3. 「Build and deployment」の「Source」を **GitHub Actions** に変更
-4. `.github/workflows/deploy.yml` が自動で認識される
+ローカル確認は、静的ファイルサーバーで配信してください。
 
-### 4. デプロイを確認する
-「Actions」タブで `Deploy SkyDeck to GitHub Pages` ワークフローが完了すると、
-`https://あなたのユーザー名.github.io/リポジトリ名/` でアクセスできます。
-
----
-
-## 🔑 Blueskyのアプリパスワードの取得方法
-
-1. Blueskyアプリ（またはbsky.app）にログイン
-2. **設定 → アプリパスワード** を開く
-3. 「アプリパスワードを追加」をクリック
-4. 名前を付けて（例: `SkyDeck`）作成
-5. 表示された `xxxx-xxxx-xxxx-xxxx` 形式のパスワードをコピー
-
-⚠️ **このパスワードはSkyDeckのログイン画面で使用します。コード内には書かないでください。**
-
----
-
-## 📂 ファイル構成
-
-```
-/
-├── index.html              メイン画面（ログイン＋アプリ本体）
-├── css/
-│   └── style.css           スタイルシート
-├── js/
-│   ├── api.js              Bluesky AT Protocol API通信層
-│   ├── ui.js               UIレンダリング関数群
-│   └── app.js              アプリケーションロジック
-└── .github/
-    └── workflows/
-        └── deploy.yml      GitHub Pagesデプロイ設定
+```bash
+# 例: Python
+python -m http.server 8080
 ```
 
----
+## 公開手順（GitHub Pages）
 
-## ⚠️ セキュリティについて
+このリポジトリには Pages 用ワークフローが含まれています。
 
-- アプリパスワードとアクセストークンは **ブラウザのlocalStorage** に保存されます
-- **共用PCでの使用は避けてください**
-- ログアウトするとlocalStorageのデータは消去されます
-- アプリパスワードはいつでもBluesky設定から無効化できます
+- ワークフロー: .github/workflows/deploy.yml
+- トリガー: main ブランチへの push
 
----
+手順:
 
-## 🔧 カスタマイズ
+1. GitHub リポジトリを作成（Public 推奨）
+2. main ブランチへ push
+3. リポジトリ設定の Pages で Source を GitHub Actions に設定
+4. Actions の Deploy SkyDeck to GitHub Pages が完了したら公開 URL で確認
 
-### PDS（Personal Data Server）を変更する場合
-`js/api.js` の先頭の定数を編集してください：
-```javascript
-const BSKY_API = 'https://bsky.social/xrpc';
-// → あなたのPDSのURLに変更
+公開 URL 例:
+
+[https://your-account.github.io/your-repo/](https://your-account.github.io/your-repo/)
+
+## ログイン情報
+
+通常パスワードではなく、Bluesky のアプリパスワードを使ってください。
+
+手順:
+
+1. Bluesky の 設定 → アプリパスワード
+2. 新規発行
+3. SkyDeck のログイン画面で入力
+
+注意:
+
+- ハンドル入力に @ は不要
+- DM 利用時は、発行時に DM アクセス許可を有効化
+
+## セキュリティポリシー
+
+- セッション情報はブラウザストレージに保存されます
+- 共用端末での利用は非推奨
+- 利用後はログアウトを推奨
+- 外部リンク遷移時は確認ダイアログを表示
+- CSP / Referrer-Policy / Permissions-Policy を設定済み
+
+## 既知事項
+
+- 一部環境（Safari、学校・組織フィルタ環境）では接続失敗になる場合があります
+- ログイン画面の 接続診断 で以下を確認できます: Public API 到達 / Chat API 到達 / Handle Resolve / Storage 書き込み可否
+- Chat API の 401/403 は未認証時の想定レスポンスで、到達確認としては正常です
+
+## フィルタリング環境での確認項目（管理者向け）
+
+以下ドメインの許可を確認してください。
+
+- [https://bsky.social](https://bsky.social)
+- [https://api.bsky.chat](https://api.bsky.chat)
+
+以下通信の許可を確認してください。
+
+- OPTIONS / GET / POST
+- カスタムヘッダー Atproto-Proxy
+
+## プロジェクト構成
+
+```text
+.
+├─ index.html
+├─ css/
+│  └─ style.css
+├─ js/
+│  ├─ api.js
+│  ├─ ui.js
+│  └─ app.js
+├─ assets/
+└─ .github/workflows/deploy.yml
 ```
+
+## 免責
+
+本プロジェクトは Bluesky 非公式クライアントです。
+運用時は組織のセキュリティポリシーおよび利用規約に従ってください。
+
+# 配布について
+改変して共有する事は可能です、その場合は原作者として@Rino-programを記載してくれると嬉しいです(必須ではない)。
+改変したかどうかに関わらず、完全なオリジナルとして出す事や売って金銭をもらう事は禁止します。

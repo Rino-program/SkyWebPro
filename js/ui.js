@@ -1,5 +1,5 @@
 /**
- * SkyDeck — ui.js  v3.0
+ * SkyDeck — ui.js  v1.0
  */
 
 // =============================================
@@ -59,7 +59,7 @@ function renderRichText(text, facets = []) {
     else if (ft?.$type === 'app.bsky.richtext.facet#mention')
       out += `<a href="https://bsky.app/profile/${encodeURIComponent(toSafeProfileId(ft.did))}" target="_blank" rel="noopener noreferrer">${seg}</a>`;
     else if (ft?.$type === 'app.bsky.richtext.facet#tag')
-      out += `<a href="https://bsky.app/hashtag/${encodeURIComponent(String(ft.tag || ''))}" target="_blank" rel="noopener noreferrer">${seg}</a>`;
+      out += `<a href="#" data-hashtag-search="${escapeHtml(String(ft.tag || ''))}">${seg}</a>`;
     else out += seg;
     pos = be;
   }
@@ -301,7 +301,7 @@ function renderNotifCard(n) {
 // =============================================
 //  ユーザーカード
 // =============================================
-function renderUserCard(profile, showFollow = false) {
+function renderUserCard(profile, showFollow = false, showDm = false) {
   const isFollowing = !!profile.viewer?.following;
   const followUri   = profile.viewer?.following || '';
   return `<div class="user-card">
@@ -311,17 +311,21 @@ function renderUserCard(profile, showFollow = false) {
     <div class="user-card-handle">@${escapeHtml(profile.handle)}</div>
     ${profile.description ? `<div class="user-card-desc">${escapeHtml(profile.description.slice(0,80))}${profile.description.length>80?'…':''}</div>` : ''}
   </div>
-  ${showFollow ? `<button class="follow-toggle-btn ${isFollowing?'following':''}" data-did="${escapeHtml(profile.did)}" data-follow-uri="${escapeHtml(followUri)}">${isFollowing?'フォロー中':'フォロー'}</button>` : ''}
+  <div class="user-card-actions">
+    ${showDm ? `<button class="dm-start-btn" data-dm-start-did="${escapeHtml(profile.did)}">DM開始</button>` : ''}
+    ${showFollow ? `<button class="follow-toggle-btn ${isFollowing?'following':''}" data-did="${escapeHtml(profile.did)}" data-follow-uri="${escapeHtml(followUri)}">${isFollowing?'フォロー中':'フォロー'}</button>` : ''}
+  </div>
 </div>`;
 }
 
 // =============================================
 //  他人のプロフィールパネル
 // =============================================
-function renderProfilePanel(profile) {
+function renderProfilePanel(profile, options = {}) {
   const isFollowing = !!profile.viewer?.following;
   const followUri   = profile.viewer?.following || '';
   const isMe        = profile.did === loadSession()?.did;
+  const canDm       = !!options.canDm;
   return `<div class="profile-panel">
   <div class="profile-banner" style="${buildSafeBannerStyle(profile.banner)}"></div>
   <div class="profile-panel-header">
@@ -336,7 +340,10 @@ function renderProfilePanel(profile) {
         <span><strong>${profile.postsCount||0}</strong> 投稿</span>
       </div>
     </div>
-    ${!isMe ? `<button class="follow-toggle-btn ${isFollowing?'following':''}" data-did="${escapeHtml(profile.did)}" data-follow-uri="${escapeHtml(followUri)}">${isFollowing?'フォロー中':'フォロー'}</button>` : ''}
+    ${!isMe ? `<div class="user-card-actions">
+      ${canDm ? `<button class="dm-start-btn" data-dm-start-did="${escapeHtml(profile.did)}">DM開始</button>` : ''}
+      <button class="follow-toggle-btn ${isFollowing?'following':''}" data-did="${escapeHtml(profile.did)}" data-follow-uri="${escapeHtml(followUri)}">${isFollowing?'フォロー中':'フォロー'}</button>
+    </div>` : ''}
   </div>
   <div id="user-profile-feed" class="feed"></div>
 </div>`;

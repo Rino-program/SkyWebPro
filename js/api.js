@@ -1,5 +1,5 @@
 /**
- * SkyDeck — api.js  v3.0
+ * SkyDeck — api.js  v1.0
  *
  * 【重要な仕様】
  * - app.bsky.* / com.atproto.*  → https://bsky.social/xrpc/...
@@ -9,8 +9,13 @@
  */
 
 const BSKY_PUB  = 'https://bsky.social/xrpc';
-const SESSION_KEY = 'skydeck_session_v3';
-const DRAFTS_KEY  = 'skydeck_drafts_v2';
+const SESSION_KEY = 'skydeck_session_v1';
+const DRAFTS_KEY  = 'skydeck_drafts_v1';
+const STORAGE_VERSION_KEY = 'skydeck_storage_version';
+const CURRENT_STORAGE_VERSION = 'v1';
+const RELOGIN_REASON_KEY = 'skydeck_relogin_reason';
+const LEGACY_SESSION_KEYS = ['skydeck_session_v3'];
+const LEGACY_DRAFT_KEYS = ['skydeck_drafts_v2'];
 const MAX_IMAGE_BYTES = 1000000;
 const API_MEMORY_STORAGE = new Map();
 
@@ -35,12 +40,58 @@ function safeStorageRemoveItem(key) {
   API_MEMORY_STORAGE.delete(key);
 }
 
+function getStorageVersion() {
+  const v = safeStorageGetItem(STORAGE_VERSION_KEY);
+  return typeof v === 'string' ? v : null;
+}
+
+function setStorageVersion(v) {
+  safeStorageSetItem(STORAGE_VERSION_KEY, String(v || CURRENT_STORAGE_VERSION));
+}
+
+function setReloginReason(reason) {
+  safeStorageSetItem(RELOGIN_REASON_KEY, String(reason || ''));
+}
+
+function takeReloginReason() {
+  const reason = safeStorageGetItem(RELOGIN_REASON_KEY) || '';
+  safeStorageRemoveItem(RELOGIN_REASON_KEY);
+  return reason;
+}
+
+function hasLegacySession() {
+  return LEGACY_SESSION_KEYS.some(k => !!safeStorageGetItem(k));
+}
+
 // =============================================
 //  セッション
 // =============================================
 function saveSession(s)  { safeStorageSetItem(SESSION_KEY, JSON.stringify(s)); }
-function loadSession()   { try { return JSON.parse(safeStorageGetItem(SESSION_KEY)||'null'); } catch { return null; } }
-function clearSession()  { safeStorageRemoveItem(SESSION_KEY); }
+function loadSession() {
+  const ver = getStorageVersion();
+  const hasV1Session = !!safeStorageGetItem(SESSION_KEY);
+  const hasOldSession = hasLegacySession();
+
+  // Storage version mismatch: invalidate current/legacy sessions and force fresh login.
+  if ((hasV1Session || hasOldSession) && ver !== CURRENT_STORAGE_VERSION) {
+    clearSession();
+    setStorageVersion(CURRENT_STORAGE_VERSION);
+    setReloginReason('storage_version_mismatch');
+    return null;
+  }
+
+  if (!ver) setStorageVersion(CURRENT_STORAGE_VERSION);
+
+  try {
+    const v1 = JSON.parse(safeStorageGetItem(SESSION_KEY) || 'null');
+    if (v1) return v1;
+  } catch {}
+  return null;
+}
+function clearSession()  {
+  safeStorageRemoveItem(SESSION_KEY);
+  LEGACY_SESSION_KEYS.forEach(safeStorageRemoveItem);
+}
 
 function getAuth() {
   const s = loadSession();
@@ -225,11 +276,19 @@ async function apiUpdateNotificationSeen() {
   }).catch(() => {});
 }
 
-async function apiSearchPosts(query, cursor = null) {
+async function apiSearchPosts(query, cursor = null, sort = 'top') {
   let url = `${BSKY_PUB}/app.bsky.feed.searchPosts?q=${encodeURIComponent(query)}&limit=25`;
+  if (sort === 'latest') url += `&sort=latest`;
   if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
   const res = await fetch(url, { headers: getAuth() });
   if (!res.ok) throw new Error(`投稿検索失敗 (${res.status})`);
+  return res.json();
+}
+
+async function apiGetTrendingTopics(limit = 20) {
+  const url = `${BSKY_PUB}/app.bsky.unspecced.getTrendingTopics?limit=${Math.max(5, Math.min(50, Number(limit || 20)))}`;
+  const res = await fetch(url, { headers: getAuth() });
+  if (!res.ok) throw new Error(`トレンド取得失敗 (${res.status})`);
   return res.json();
 }
 
@@ -318,6 +377,19 @@ async function apiSendMessage(convoId, text) {
     body: JSON.stringify({ convoId, message: { $type: 'chat.bsky.convo.defs#messageInput', text } }),
   });
   if (!res.ok) throw new Error(`メッセージ送信失敗 (${res.status})`);
+  return res.json();
+}
+
+async function apiGetOrCreateConvoWithMember(memberDid) {
+  const did = String(memberDid || '').trim();
+  if (!did) throw new Error('DM対象ユーザーが不正です');
+  const url = `${BSKY_CHAT}/chat.bsky.convo.getConvoForMembers?members=${encodeURIComponent(did)}`;
+  const res = await fetch(url, { headers: getChatAuth() });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    if (res.status === 403) throw new Error('このユーザーは新規DMに対応していません');
+    throw new Error(e.message || `DM開始失敗 (${res.status})`);
+  }
   return res.json();
 }
 
@@ -481,6 +553,21 @@ async function apiUnfollow(followUri) {
 // =============================================
 //  下書き
 // =============================================
-function getDrafts()     { try { return JSON.parse(safeStorageGetItem(DRAFTS_KEY)||'[]'); } catch { return []; } }
+function getDrafts() {
+  try {
+    const v1 = JSON.parse(safeStorageGetItem(DRAFTS_KEY) || '[]');
+    if (Array.isArray(v1) && v1.length) return v1;
+  } catch {}
+  for (const key of LEGACY_DRAFT_KEYS) {
+    try {
+      const old = JSON.parse(safeStorageGetItem(key) || '[]');
+      if (Array.isArray(old) && old.length) {
+        safeStorageSetItem(DRAFTS_KEY, JSON.stringify(old));
+        return old;
+      }
+    } catch {}
+  }
+  return [];
+}
 function saveDraft(text) { const d = getDrafts(); d.unshift({ id: Date.now(), text, savedAt: new Date().toISOString() }); safeStorageSetItem(DRAFTS_KEY, JSON.stringify(d.slice(0, 20))); }
 function deleteDraft(id) { safeStorageSetItem(DRAFTS_KEY, JSON.stringify(getDrafts().filter(d => d.id !== id))); }

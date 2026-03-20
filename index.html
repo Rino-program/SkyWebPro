@@ -134,6 +134,10 @@
             <button id="cancel-reply-btn" class="cancel-reply">✕</button>
           </div>
           <textarea id="compose-text" class="compose-ta" placeholder="今何を考えていますか？" maxlength="320" rows="3"></textarea>
+          <div class="compose-smart-row">
+            <div id="compose-template-list" class="compose-template-list"></div>
+            <button id="compose-template-refresh" class="btn-sm" type="button">提案更新</button>
+          </div>
           <div id="image-preview-area" class="preview-area hidden"></div>
           <div id="image-assist" class="image-assist hidden">
             <div class="image-assist-head">画像投稿アシスト</div>
@@ -181,7 +185,9 @@
         <div class="sub-tabs">
           <button class="sub-tab" data-sub="discover">Discover</button>
           <button class="sub-tab active" data-sub="following">Following</button>
+          <button class="sub-tab" data-sub="pinned" id="home-pinned-subtab" title="固定キーワードの検索結果">固定</button>
         </div>
+        <button id="home-pinned-edit" class="btn-sm" type="button" title="固定キーワードを変更">固定語を変更</button>
         <button class="refresh-btn" data-target="home"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
       </div>
       <div id="home-feed" class="feed"></div>
@@ -192,6 +198,7 @@
       <div class="section-head">
         <div class="sub-tabs">
           <button class="sub-tab active" data-sub="all">すべて</button>
+          <button class="sub-tab" data-sub="unread">未読</button>
           <button class="sub-tab" data-sub="mention">メンション</button>
         </div>
         <button class="refresh-btn" data-target="notifications"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
@@ -204,12 +211,30 @@
       <div class="section-head">
         <div class="search-box-wrap">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" id="search-input" class="search-box" placeholder="投稿・ユーザーを検索…"/>
+          <input type="text" id="search-input" class="search-box" placeholder="投稿・ユーザーを検索…（トレンドは入力不要）"/>
+          <button id="search-clear-btn" class="search-clear-btn hidden" title="検索をクリア" aria-label="検索をクリア">✕</button>
         </div>
+        <button id="search-ime-helper" class="btn-sm" type="button" title="入力補助を開く">入力補助</button>
+      </div>
+      <div id="search-recent-wrap" class="search-recent-wrap hidden">
+        <div class="search-recent-head">
+          <span>最近の検索</span>
+          <button id="search-recent-clear" class="btn-sm" type="button">全消去</button>
+        </div>
+        <div id="search-recent-list" class="search-recent-list"></div>
       </div>
       <div class="sub-tabs" style="padding:8px 16px">
+        <button class="sub-tab" data-sub="latest">最新</button>
         <button class="sub-tab active" data-sub="posts">投稿</button>
         <button class="sub-tab" data-sub="users">ユーザー</button>
+        <button class="sub-tab" data-sub="trends">トレンド</button>
+      </div>
+      <div id="trend-category-tabs" class="trend-category-tabs hidden">
+        <button class="btn-sm active" data-trend-cat="all">すべて</button>
+        <button class="btn-sm" data-trend-cat="news">ニュース</button>
+        <button class="btn-sm" data-trend-cat="tech">技術</button>
+        <button class="btn-sm" data-trend-cat="ent">エンタメ</button>
+        <button class="btn-sm" data-trend-cat="life">生活</button>
       </div>
       <div id="search-feed" class="feed"></div>
     </section>
@@ -218,6 +243,7 @@
     <section id="tab-dm" class="tab-section hidden">
       <div class="section-head">
         <h2 class="section-title">ダイレクトメッセージ</h2>
+        <button id="dm-start-btn" class="btn-sm" type="button">新規DM</button>
         <button class="refresh-btn" data-target="dm"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
       </div>
       <div class="dm-tip">
@@ -301,7 +327,7 @@
         </div>
         <div class="settings-section">
           <h3 class="settings-section-title">SkyDeck について</h3>
-          <div class="settings-row"><div><div class="settings-row-label">バージョン</div><div class="settings-row-desc">SkyDeck v3.0 — AT Protocol client</div></div></div>
+          <div class="settings-row"><div><div class="settings-row-label">バージョン</div><div class="settings-row-desc">SkyDeck v1.0 — AT Protocol client</div></div></div>
           <div class="settings-row"><div><div class="settings-row-label">ソースコード</div><div class="settings-row-desc">GitHub Pages でホスティング</div></div><a href="https://github.com/Rino-program/skydeck" target="_blank" rel="noopener noreferrer" class="btn-sm">開く↗</a></div>
           <div class="settings-row"><div><div class="settings-row-desc" style="font-size:.68rem;opacity:.55">@Rino-program · @Claude · @GitHubCopilot</div></div></div>
         </div>
@@ -309,6 +335,13 @@
           <h3 class="settings-section-title">表示</h3>
           <div class="settings-row"><div><div class="settings-row-label">ダークモード</div><div class="settings-row-desc">見た目を切り替えます</div></div><button id="theme-toggle-btn" class="btn-sm">切り替え</button></div>
           <div class="settings-row"><div><div class="settings-row-label">Control Deck</div><div class="settings-row-desc">右下パネルの表示/非表示</div></div><label class="right-toggle"><input id="settings-show-control-deck" type="checkbox" checked/> 表示する</label></div>
+          <div class="settings-row"><div><div class="settings-row-label">ショートカット一覧</div><div class="settings-row-desc">キーボード操作の一覧を表示</div></div><button id="settings-shortcuts-btn" class="btn-sm">表示</button></div>
+        </div>
+        <div class="settings-section">
+          <h3 class="settings-section-title">日本最適化と個人最適化</h3>
+          <div class="settings-row"><div><div class="settings-row-label">日本最適化モード</div><div class="settings-row-desc">検索時に日本語優先（lang:ja）・国内向け表示を強化</div></div><label class="right-toggle"><input id="settings-japan-mode" type="checkbox" checked/> 有効</label></div>
+          <div class="settings-row"><div><div class="settings-row-label">トレンドを日本中心に</div><div class="settings-row-desc">トレンドで日本語タグを優先表示</div></div><label class="right-toggle"><input id="settings-japan-trends" type="checkbox" checked/> 優先</label></div>
+          <div class="settings-row"><div><div class="settings-row-label">あなた向け自動最適化</div><div class="settings-row-desc">利用傾向に合わせて検索候補と起動タブを調整</div></div><label class="right-toggle"><input id="settings-personalize" type="checkbox" checked/> 有効</label></div>
         </div>
         <div class="settings-section">
           <h3 class="settings-section-title">サポート</h3>
@@ -457,6 +490,62 @@
     <div class="modal-actions">
       <button id="delete-cancel-btn" class="btn-modal-cancel">キャンセル</button>
       <button id="delete-confirm-btn" class="btn-modal-danger">削除する</button>
+    </div>
+  </div>
+</div>
+
+<div id="shortcuts-modal" class="modal-overlay hidden">
+  <div class="modal-card shortcuts-card">
+    <h3 class="modal-title">キーボードショートカット</h3>
+    <div class="shortcuts-list">
+      <div class="shortcut-row"><span>検索にフォーカス</span><strong>Ctrl/Cmd + K</strong></div>
+      <div class="shortcut-row"><span>検索タブへ移動</span><strong>/</strong></div>
+      <div class="shortcut-row"><span>ホーム/通知/検索/DM/リスト/プロフィール/設定</span><strong>g → h n s d l p t</strong></div>
+      <div class="shortcut-row"><span>本文へフォーカス</span><strong>c</strong></div>
+      <div class="shortcut-row"><span>投稿実行</span><strong>Ctrl/Cmd + Enter</strong></div>
+      <div class="shortcut-row"><span>ショートカット表示</span><strong>?</strong></div>
+      <div class="shortcut-row"><span>モーダルを閉じる</span><strong>Esc</strong></div>
+    </div>
+    <div class="modal-actions">
+      <button id="shortcuts-close-btn" class="btn-modal-cancel">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<div id="dm-start-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <h3 class="modal-title">新規DMを開始</h3>
+    <p class="modal-body">ハンドルを入力して対応ユーザーとのDMを開始します。</p>
+    <input id="dm-start-handle" class="form-input" type="text" placeholder="example.bsky.social"/>
+    <div id="dm-start-status" class="right-mini-status" style="margin-top:8px"></div>
+    <div class="modal-actions" style="margin-top:14px">
+      <button id="dm-start-cancel" class="btn-modal-cancel" type="button">閉じる</button>
+      <button id="dm-start-submit" class="btn-post" type="button">開始</button>
+    </div>
+  </div>
+</div>
+
+<div id="home-pinned-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <h3 class="modal-title">固定検索ワード</h3>
+    <p class="modal-body">ホームの「固定」タブで表示する検索語を設定します。</p>
+    <input id="home-pinned-input" class="form-input" type="text" maxlength="80" placeholder="例: Bluesky 日本"/>
+    <div id="home-pinned-status" class="right-mini-status" style="margin-top:8px"></div>
+    <div class="modal-actions" style="margin-top:14px">
+      <button id="home-pinned-cancel" class="btn-modal-cancel" type="button">閉じる</button>
+      <button id="home-pinned-save" class="btn-post" type="button">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="search-ime-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <h3 class="modal-title">検索入力補助</h3>
+    <p class="modal-body">キーボードアプリで直接入力しづらい場合はこちらを使ってください。</p>
+    <textarea id="search-ime-text" class="form-input" rows="3" maxlength="120" placeholder="検索語を入力"></textarea>
+    <div class="modal-actions" style="margin-top:14px">
+      <button id="search-ime-cancel" class="btn-modal-cancel" type="button">閉じる</button>
+      <button id="search-ime-apply" class="btn-post" type="button">検索に反映</button>
     </div>
   </div>
 </div>
