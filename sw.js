@@ -1,4 +1,4 @@
-const CACHE_NAME = 'skydeck-static-v1';
+const CACHE_NAME = 'skywebpro-static-v1';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -8,7 +8,7 @@ const STATIC_ASSETS = [
   './js/api.js',
   './js/ui.js',
   './js/app.js',
-  './assets/skydeck-mark.svg',
+  './assets/skywebpro-mark.svg',
 ];
 
 self.addEventListener('install', event => {

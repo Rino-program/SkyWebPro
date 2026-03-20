@@ -1,9 +1,9 @@
 /**
- * SkyDeck shared utility functions.
+ * SkyWebPro shared utility functions.
  * - Browser: exposes globals used by app/ui scripts.
  * - Node.js: exports for unit tests.
  */
-(function initSkydeckUtils(root) {
+(function initSkywebproUtils(root) {
   function escapeHtml(s) {
     return String(s ?? '')
       .replace(/&/g, '&amp;')
@@ -35,7 +35,7 @@
     toSafeProfileId,
   };
 
-  root.SKYDECK_UTILS = api;
+  root.SKYWEBPRO_UTILS = api;
   root.escapeHtml = root.escapeHtml || escapeHtml;
   root.sanitizeHttpUrl = root.sanitizeHttpUrl || sanitizeHttpUrl;
   root.toSafeProfileId = root.toSafeProfileId || toSafeProfileId;

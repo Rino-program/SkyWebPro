@@ -1,4 +1,4 @@
-name: Deploy SkyDeck to GitHub Pages
+name: Deploy SkyWebPro to GitHub Pages
 
 on:
   push:

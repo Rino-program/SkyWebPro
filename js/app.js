@@ -1,5 +1,5 @@
 /**
- * SkyDeck — app.js  v1.0
+ * SkyWebPro — app.js  v1.0
  */
 
 const S = {
@@ -24,38 +24,38 @@ const S = {
   notifFilterMode: 'all',
 };
 
-const C = window.SKYDECK_CONST || {};
-const QUICK_NOTE_KEY = C.QUICK_NOTE_KEY || 'skydeck_quick_note_v1';
-const QUICK_NOTE_LIST_KEY = C.QUICK_NOTE_LIST_KEY || 'skydeck_quick_note_list_v1';
-const THEME_KEY = C.THEME_KEY || 'skydeck_theme_v1';
+const C = window.SKYWEBPRO_CONST || {};
+const QUICK_NOTE_KEY = C.QUICK_NOTE_KEY || 'skywebpro_quick_note_v1';
+const QUICK_NOTE_LIST_KEY = C.QUICK_NOTE_LIST_KEY || 'skywebpro_quick_note_list_v1';
+const THEME_KEY = C.THEME_KEY || 'skywebpro_theme_v1';
 const APP_MAX_IMAGE_BYTES = Number(C.APP_MAX_IMAGE_BYTES || 1000000);
-const RIGHT_PANEL_PREFS_KEY = C.RIGHT_PANEL_PREFS_KEY || 'skydeck_right_panel_prefs_v1';
-const POST_HISTORY_KEY = C.POST_HISTORY_KEY || 'skydeck_post_history_v1';
-const SEARCH_HISTORY_KEY = C.SEARCH_HISTORY_KEY || 'skydeck_search_history_v1';
-const COMPOSE_CACHE_KEY = C.COMPOSE_CACHE_KEY || 'skydeck_compose_cache_v1';
-const UI_PREFS_KEY = C.UI_PREFS_KEY || 'skydeck_ui_prefs_v1';
-const EXPERIENCE_PREFS_KEY = C.EXPERIENCE_PREFS_KEY || 'skydeck_experience_prefs_v1';
-const ACTIVITY_STATS_KEY = C.ACTIVITY_STATS_KEY || 'skydeck_activity_stats_v1';
-const HOME_PINNED_QUERY_KEY = C.HOME_PINNED_QUERY_KEY || 'skydeck_home_pinned_query_v1';
-const SCROLL_POSITIONS_KEY = C.SCROLL_POSITIONS_KEY || 'skydeck_scroll_positions_v1';
-const QUICK_POST_WIDTH_KEY = C.QUICK_POST_WIDTH_KEY || 'skydeck_quick_post_width_v1';
-const FEED_WIDTH_PREFS_KEY = C.FEED_WIDTH_PREFS_KEY || 'skydeck_feed_width_prefs_v1';
-const NOTIF_POLL_MS_KEY = C.NOTIF_POLL_MS_KEY || 'skydeck_notif_poll_ms_v1';
-const TOAST_DURATION_MS_KEY = C.TOAST_DURATION_MS_KEY || 'skydeck_toast_duration_ms_v1';
-const STARTUP_TAB_MODE_KEY = C.STARTUP_TAB_MODE_KEY || 'skydeck_startup_tab_mode_v1';
-const IMAGE_AUTOLOAD_MODE_KEY = C.IMAGE_AUTOLOAD_MODE_KEY || 'skydeck_image_autoload_mode_v1';
-const POST_DENSITY_KEY = C.POST_DENSITY_KEY || 'skydeck_post_density_v1';
-const FONT_SCALE_KEY = C.FONT_SCALE_KEY || 'skydeck_font_scale_v1';
-const READING_WIDTH_KEY = C.READING_WIDTH_KEY || 'skydeck_reading_width_v1';
-const SHORTCUT_PREFS_KEY = C.SHORTCUT_PREFS_KEY || 'skydeck_shortcut_prefs_v1';
-const SHORTCUTS_ENABLED_KEY = C.SHORTCUTS_ENABLED_KEY || 'skydeck_shortcuts_enabled_v1';
-const INACTIVITY_TIMEOUT_MIN_KEY = C.INACTIVITY_TIMEOUT_MIN_KEY || 'skydeck_inactivity_timeout_min_v1';
-const PERF_METRICS_KEY = C.PERF_METRICS_KEY || 'skydeck_perf_metrics_v1';
-const PINNED_QUERIES_KEY = C.PINNED_QUERIES_KEY || 'skydeck_pinned_queries_v1';
-const REPLY_TEMPLATE_KEY = C.REPLY_TEMPLATE_KEY || 'skydeck_reply_template_v1';
-const POST_QUEUE_KEY = C.POST_QUEUE_KEY || 'skydeck_post_queue_v1';
-const DM_READ_STATE_KEY = C.DM_READ_STATE_KEY || 'skydeck_dm_read_state_v1';
-const LOG_LEVEL_KEY = C.LOG_LEVEL_KEY || 'skydeck_log_level_v1';
+const RIGHT_PANEL_PREFS_KEY = C.RIGHT_PANEL_PREFS_KEY || 'skywebpro_right_panel_prefs_v1';
+const POST_HISTORY_KEY = C.POST_HISTORY_KEY || 'skywebpro_post_history_v1';
+const SEARCH_HISTORY_KEY = C.SEARCH_HISTORY_KEY || 'skywebpro_search_history_v1';
+const COMPOSE_CACHE_KEY = C.COMPOSE_CACHE_KEY || 'skywebpro_compose_cache_v1';
+const UI_PREFS_KEY = C.UI_PREFS_KEY || 'skywebpro_ui_prefs_v1';
+const EXPERIENCE_PREFS_KEY = C.EXPERIENCE_PREFS_KEY || 'skywebpro_experience_prefs_v1';
+const ACTIVITY_STATS_KEY = C.ACTIVITY_STATS_KEY || 'skywebpro_activity_stats_v1';
+const HOME_PINNED_QUERY_KEY = C.HOME_PINNED_QUERY_KEY || 'skywebpro_home_pinned_query_v1';
+const SCROLL_POSITIONS_KEY = C.SCROLL_POSITIONS_KEY || 'skywebpro_scroll_positions_v1';
+const QUICK_POST_WIDTH_KEY = C.QUICK_POST_WIDTH_KEY || 'skywebpro_quick_post_width_v1';
+const FEED_WIDTH_PREFS_KEY = C.FEED_WIDTH_PREFS_KEY || 'skywebpro_feed_width_prefs_v1';
+const NOTIF_POLL_MS_KEY = C.NOTIF_POLL_MS_KEY || 'skywebpro_notif_poll_ms_v1';
+const TOAST_DURATION_MS_KEY = C.TOAST_DURATION_MS_KEY || 'skywebpro_toast_duration_ms_v1';
+const STARTUP_TAB_MODE_KEY = C.STARTUP_TAB_MODE_KEY || 'skywebpro_startup_tab_mode_v1';
+const IMAGE_AUTOLOAD_MODE_KEY = C.IMAGE_AUTOLOAD_MODE_KEY || 'skywebpro_image_autoload_mode_v1';
+const POST_DENSITY_KEY = C.POST_DENSITY_KEY || 'skywebpro_post_density_v1';
+const FONT_SCALE_KEY = C.FONT_SCALE_KEY || 'skywebpro_font_scale_v1';
+const READING_WIDTH_KEY = C.READING_WIDTH_KEY || 'skywebpro_reading_width_v1';
+const SHORTCUT_PREFS_KEY = C.SHORTCUT_PREFS_KEY || 'skywebpro_shortcut_prefs_v1';
+const SHORTCUTS_ENABLED_KEY = C.SHORTCUTS_ENABLED_KEY || 'skywebpro_shortcuts_enabled_v1';
+const INACTIVITY_TIMEOUT_MIN_KEY = C.INACTIVITY_TIMEOUT_MIN_KEY || 'skywebpro_inactivity_timeout_min_v1';
+const PERF_METRICS_KEY = C.PERF_METRICS_KEY || 'skywebpro_perf_metrics_v1';
+const PINNED_QUERIES_KEY = C.PINNED_QUERIES_KEY || 'skywebpro_pinned_queries_v1';
+const REPLY_TEMPLATE_KEY = C.REPLY_TEMPLATE_KEY || 'skywebpro_reply_template_v1';
+const POST_QUEUE_KEY = C.POST_QUEUE_KEY || 'skywebpro_post_queue_v1';
+const DM_READ_STATE_KEY = C.DM_READ_STATE_KEY || 'skywebpro_dm_read_state_v1';
+const LOG_LEVEL_KEY = C.LOG_LEVEL_KEY || 'skywebpro_log_level_v1';
 const ADMIN_REPORT_HANDLE = C.ADMIN_REPORT_HANDLE || 'rino-program.bsky.social';
 const LOGIN_CONSOLE_MAX_LINES = Number(C.LOGIN_CONSOLE_MAX_LINES || 200);
 const DEFAULT_SHORTCUT_PREFS = C.DEFAULT_SHORTCUT_PREFS || {
@@ -84,7 +84,7 @@ const SETTINGS_EXPORT_KEYS = [
   SEARCH_HISTORY_KEY,
   QUICK_NOTE_KEY,
   QUICK_NOTE_LIST_KEY,
-  'skydeck_drafts_v1',
+  'skywebpro_drafts_v1',
 ];
 const APP_MEMORY_STORAGE = new Map();
 const APP_FETCH_CACHE = new Map();
@@ -413,7 +413,7 @@ function getShortcutPrefs() {
 }
 
 function getActiveShortcutPrefs() {
-  const active = window.__skydeckShortcutPrefs;
+  const active = window.__skywebproShortcutPrefs;
   if (active && typeof active === 'object') return sanitizeShortcutPrefs(active);
   return getShortcutPrefs();
 }
@@ -426,7 +426,7 @@ function getShortcutsEnabled() {
 
 function applyShortcutsEnabledState(enabled) {
   const on = !!enabled;
-  window.__skydeckShortcutsEnabled = on;
+  window.__skywebproShortcutsEnabled = on;
   const ids = [
     'settings-shortcut-help',
     'settings-shortcut-search',
@@ -473,7 +473,7 @@ function syncShortcutHintUi() {
 function setShortcutPrefs(prefs) {
   const next = sanitizeShortcutPrefs(prefs);
   safeStorageSet(SHORTCUT_PREFS_KEY, JSON.stringify(next));
-  window.__skydeckShortcutPrefs = next;
+  window.__skywebproShortcutPrefs = next;
   syncShortcutHintUi();
 }
 
@@ -527,7 +527,7 @@ function getImageAutoloadMode() {
 function setImageAutoloadMode(mode) {
   const next = mode === 'wifi' ? 'wifi' : 'always';
   safeStorageSet(IMAGE_AUTOLOAD_MODE_KEY, next);
-  window.__skydeckImageAutoLoadMode = next;
+  window.__skywebproImageAutoLoadMode = next;
 }
 
 function syncImageAutoloadUi() {
@@ -736,7 +736,7 @@ function setToastDurationMs(ms) {
   const allowed = [2000, 3500, 5000, 8000];
   const next = allowed.includes(v) ? v : 3500;
   safeStorageSet(TOAST_DURATION_MS_KEY, String(next));
-  window.__skydeckToastDurationMs = next;
+  window.__skywebproToastDurationMs = next;
 }
 
 function syncToastDurationUi() {
@@ -759,7 +759,7 @@ function buildSettingsExportPayload() {
     if (value !== null && value !== undefined) data[key] = value;
   });
   return {
-    app: 'SkyDeck',
+    app: 'SkyWebPro',
     version: 1,
     exportedAt: new Date().toISOString(),
     data,
@@ -781,7 +781,7 @@ function downloadTextFile(fileName, text, mimeType = 'application/json') {
 function exportSettingsToFile() {
   const payload = buildSettingsExportPayload();
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  downloadTextFile(`skydeck-settings-${stamp}.json`, JSON.stringify(payload, null, 2));
+  downloadTextFile(`skywebpro-settings-${stamp}.json`, JSON.stringify(payload, null, 2));
   showToast('設定をエクスポートしました', 'success', 1500);
 }
 
@@ -927,8 +927,8 @@ function appendLoginConsole(level, args) {
 }
 
 function installLoginConsoleCapture() {
-  if (window.__skydeckLoginConsoleInstalled) return;
-  window.__skydeckLoginConsoleInstalled = true;
+  if (window.__skywebproLoginConsoleInstalled) return;
+  window.__skywebproLoginConsoleInstalled = true;
 
   ['log', 'info', 'warn', 'error'].forEach(level => {
     const original = console[level].bind(console);
@@ -949,7 +949,7 @@ function installLoginConsoleCapture() {
 function clearLoginConsole() {
   const out = document.getElementById('login-console-output');
   if (!out) return;
-  out.textContent = '[SkyDeck] login console cleared';
+  out.textContent = '[SkyWebPro] login console cleared';
 }
 
 // =============================================
@@ -3554,7 +3554,7 @@ function handleGlobalKeydown(e) {
   const key = String(e.key || '').toLowerCase();
   const typing = isTypingTarget(e.target);
   const shortcuts = getActiveShortcutPrefs();
-  const shortcutsEnabled = window.__skydeckShortcutsEnabled !== false;
+  const shortcutsEnabled = window.__skywebproShortcutsEnabled !== false;
 
   if (trapFocusInTopModal(e)) return;
 
@@ -3981,7 +3981,7 @@ async function handleLoginConnectivityCheck() {
 
     // Safariのプライベートモード等で起きるストレージ制限の診断
     try {
-      const k = '__skydeck_storage_probe__';
+      const k = '__skywebpro_storage_probe__';
       localStorage.setItem(k, '1');
       localStorage.removeItem(k);
       lines.push('- Storage: OK (localStorage writable)');

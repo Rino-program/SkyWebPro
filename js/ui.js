@@ -1,11 +1,11 @@
 /**
- * SkyDeck — ui.js  v1.0
+ * SkyWebPro — ui.js  v1.0
  */
 
 // =============================================
 //  ユーティリティ
 // =============================================
-const _utils = window.SKYDECK_UTILS || {};
+const _utils = window.SKYWEBPRO_UTILS || {};
 const escapeHtml = _utils.escapeHtml || (s => String(s ?? ''));
 const sanitizeHttpUrl = _utils.sanitizeHttpUrl || (() => '');
 const toSafeProfileId = _utils.toSafeProfileId || (v => String(v ?? ''));
@@ -65,7 +65,7 @@ function renderRichText(text, facets = []) {
 }
 
 function showToast(msg, type='info', dur) {
-  const configured = Number(window.__skydeckToastDurationMs || 3500);
+  const configured = Number(window.__skywebproToastDurationMs || 3500);
   const ttl = Number.isFinite(Number(dur)) ? Number(dur) : (Number.isFinite(configured) ? configured : 3500);
   const c = document.getElementById('toast-container');
   const t = document.createElement('div');
@@ -161,7 +161,7 @@ function getEmbedImages(embed) {
 }
 
 function shouldAutoLoadFeedImages() {
-  const mode = String(window.__skydeckImageAutoLoadMode || 'always');
+  const mode = String(window.__skywebproImageAutoLoadMode || 'always');
   if (mode !== 'wifi') return true;
   const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
   if (!conn) return true;

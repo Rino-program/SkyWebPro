@@ -1,6 +1,6 @@
 # Versioning Policy
 
-SkyDeck は SemVer 互換の運用を目指します。
+SkyWebPro は SemVer 互換の運用を目指します。
 
 ## 形式
 

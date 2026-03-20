@@ -1,5 +1,5 @@
 /**
- * SkyDeck — api.js  v1.0
+ * SkyWebPro — api.js  v1.0
  *
  * 【重要な仕様】
  * - app.bsky.* / com.atproto.*  → https://bsky.social/xrpc/...
@@ -9,15 +9,15 @@
  */
 
 const BSKY_PUB  = 'https://bsky.social/xrpc';
-const SESSION_KEY = 'skydeck_session_v1';
-const DRAFTS_KEY  = 'skydeck_drafts_v1';
-const STORAGE_VERSION_KEY = 'skydeck_storage_version';
+const SESSION_KEY = 'skywebpro_session_v1';
+const DRAFTS_KEY  = 'skywebpro_drafts_v1';
+const STORAGE_VERSION_KEY = 'skywebpro_storage_version';
 const CURRENT_STORAGE_VERSION = 'v1';
-const RELOGIN_REASON_KEY = 'skydeck_relogin_reason';
-const SESSION_SAVED_AT_KEY = 'skydeck_session_saved_at';
+const RELOGIN_REASON_KEY = 'skywebpro_relogin_reason';
+const SESSION_SAVED_AT_KEY = 'skywebpro_session_saved_at';
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const LEGACY_SESSION_KEYS = ['skydeck_session_v3'];
-const LEGACY_DRAFT_KEYS = ['skydeck_drafts_v2'];
+const LEGACY_SESSION_KEYS = ['skywebpro_session_v3'];
+const LEGACY_DRAFT_KEYS = ['skywebpro_drafts_v2'];
 const MAX_IMAGE_BYTES = 1000000;
 const IMAGE_UPLOAD_RETRY_ATTEMPTS = 2;
 const API_MEMORY_STORAGE = new Map();

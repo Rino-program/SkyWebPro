@@ -1,6 +1,6 @@
 # Contributing Guide
 
-SkyDeck へのコントリビュートありがとうございます。小さな修正でも歓迎です。
+SkyWebPro へのコントリビュートありがとうございます。小さな修正でも歓迎です。
 
 ## 開発セットアップ
 
@@ -8,8 +8,8 @@ SkyDeck へのコントリビュートありがとうございます。小さな
 1. 静的サーバーで配信します。
 
 ```bash
-git clone https://github.com/Rino-program/skydeck.git
-cd skydeck
+git clone https://github.com/Rino-program/skywebpro.git
+cd skywebpro
 python -m http.server 8080
 ```
 
@@ -26,7 +26,7 @@ python -m http.server 8080
 - 既存スタイル（素の HTML/CSS/JS）を維持する。
 - 無関係な大規模整形を避ける。
 - ユーザー向け文言は日本語で統一する。
-- localStorage キー追加時は命名規則 `skydeck_*_v1` を使う。
+- localStorage キー追加時は命名規則 `skywebpro_*_v1` を使う。
 
 ## 動作確認チェックリスト
 

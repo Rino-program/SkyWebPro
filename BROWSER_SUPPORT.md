@@ -1,6 +1,6 @@
 # Browser Support
 
-SkyDeck の推奨サポート範囲です。
+SkyWebPro の推奨サポート範囲です。
 
 | Browser | サポート状態 | 備考 |
 | --- | --- | --- |
