@@ -8,7 +8,12 @@
  * - DM用アプリパスワードには「ダイレクトメッセージへのアクセスを許可」が必要
  */
 
-const BSKY_PUB  = 'https://bsky.social/xrpc';
+const DIRECT_BSKY_PUB = 'https://bsky.social/xrpc';
+const DIRECT_BSKY_CHAT = 'https://api.bsky.chat/xrpc';
+const CONNECTION_MODE_KEY = 'skywebpro_connection_mode_v1';
+const CONNECTION_PROXY_BASE_KEY = 'skywebpro_connection_proxy_base_v1';
+const CONNECTION_MODE_DIRECT = 'direct';
+const CONNECTION_MODE_PROXY = 'proxy';
 const SESSION_KEY = 'skywebpro_session_v1';
 const DRAFTS_KEY  = 'skywebpro_drafts_v1';
 const STORAGE_VERSION_KEY = 'skywebpro_storage_version';
@@ -21,6 +26,45 @@ const LEGACY_DRAFT_KEYS = ['skywebpro_drafts_v2'];
 const MAX_IMAGE_BYTES = 1000000;
 const IMAGE_UPLOAD_RETRY_ATTEMPTS = 2;
 const API_MEMORY_STORAGE = new Map();
+
+function normalizeProxyBase(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return '';
+  try {
+    const url = new URL(value);
+    if (!/^https?:$/i.test(url.protocol)) return '';
+    return url.origin + url.pathname.replace(/\/+$/, '');
+  } catch {
+    return '';
+  }
+}
+
+function getConnectionMode() {
+  const raw = String(safeStorageGetItem(CONNECTION_MODE_KEY) || CONNECTION_MODE_DIRECT).toLowerCase();
+  return raw === CONNECTION_MODE_PROXY ? CONNECTION_MODE_PROXY : CONNECTION_MODE_DIRECT;
+}
+
+function getProxyBaseUrl() {
+  return normalizeProxyBase(safeStorageGetItem(CONNECTION_PROXY_BASE_KEY) || '');
+}
+
+function getPublicApiBase() {
+  if (getConnectionMode() === CONNECTION_MODE_PROXY) {
+    const base = getProxyBaseUrl();
+    if (!base) throw new AppError('PROXY_BASE_REQUIRED', 'プロキシモードの接続先URLを設定してください。');
+    return `${base}/xrpc`;
+  }
+  return DIRECT_BSKY_PUB;
+}
+
+function getChatApiBase() {
+  if (getConnectionMode() === CONNECTION_MODE_PROXY) {
+    const base = getProxyBaseUrl();
+    if (!base) throw new AppError('PROXY_BASE_REQUIRED', 'プロキシモードの接続先URLを設定してください。');
+    return `${base}/xrpc`;
+  }
+  return DIRECT_BSKY_CHAT;
+}
 
 class AppError extends Error {
   constructor(code, message, detail = null) {
@@ -139,8 +183,6 @@ function getAuth() {
  * （bsky.social/xrpc/ ではなく専用ドメイン）
  * + ヘッダー: Atproto-Proxy: did:web:api.bsky.chat#bsky_chat
  */
-const BSKY_CHAT = 'https://api.bsky.chat/xrpc';
-
 function getChatAuth() {
   return {
     ...getAuth(),
@@ -154,7 +196,7 @@ function getChatAuth() {
 // =============================================
 async function apiLogin(identifier, password) {
   const id = identifier.replace(/^@/, '').trim();
-  const res = await fetch(`${BSKY_PUB}/com.atproto.server.createSession`, {
+  const res = await fetch(`${getPublicApiBase()}/com.atproto.server.createSession`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ identifier: id, password: password.trim() }),
@@ -186,8 +228,7 @@ async function apiLogin(identifier, password) {
 
 async function apiRefreshSession(refreshJwt) {
   const s = loadSession();
-  const pdsUrl = s?.pdsUrl || 'https://bsky.social';
-  const res = await fetch(`${pdsUrl}/xrpc/com.atproto.server.refreshSession`, {
+  const res = await fetch(`${getPublicApiBase()}/com.atproto.server.refreshSession`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${refreshJwt}` },
   });
@@ -223,14 +264,14 @@ const withTokenRefresh = withAuth;
 async function apiGetProfile(actor) {
   const s = loadSession();
   const t = (actor || s.handle).replace(/^@/, '');
-  const res = await fetch(`${BSKY_PUB}/app.bsky.actor.getProfile?actor=${encodeURIComponent(t)}`, { headers: getAuth() });
+  const res = await fetch(`${getPublicApiBase()}/app.bsky.actor.getProfile?actor=${encodeURIComponent(t)}`, { headers: getAuth() });
   if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || e.message || 'プロフィール取得失敗'); }
   return res.json();
 }
 
 async function apiGetOwnProfileRecord() {
   const s = loadSession();
-  const url = `${BSKY_PUB}/com.atproto.repo.getRecord?repo=${encodeURIComponent(s.did)}&collection=app.bsky.actor.profile&rkey=self`;
+  const url = `${getPublicApiBase()}/com.atproto.repo.getRecord?repo=${encodeURIComponent(s.did)}&collection=app.bsky.actor.profile&rkey=self`;
   const res = await fetch(url, { headers: getAuth() });
   if (!res.ok) return null;
   const data = await res.json().catch(() => ({}));
@@ -259,7 +300,7 @@ async function apiUpdateProfile({ displayName, description, avatarFile, bannerFi
   else if (current?.avatar) record.avatar = current.avatar;
   if (bannerFile) record.banner = await apiUploadBlob(bannerFile);
   else if (current?.banner) record.banner = current.banner;
-  const res = await fetch(`${BSKY_PUB}/com.atproto.repo.putRecord`, {
+  const res = await fetch(`${getPublicApiBase()}/com.atproto.repo.putRecord`, {
     method: 'POST',
     headers: { ...getAuth(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo: s.did, collection: 'app.bsky.actor.profile', rkey: 'self', record }),
@@ -272,7 +313,7 @@ async function apiUpdateProfile({ displayName, description, avatarFile, bannerFi
 //  フィード
 // =============================================
 async function apiGetTimeline(cursor = null) {
-  let url = `${BSKY_PUB}/app.bsky.feed.getTimeline?limit=30`;
+  let url = `${getPublicApiBase()}/app.bsky.feed.getTimeline?limit=30`;
   if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
   const res = await withRetry(() => fetch(url, { headers: getAuth() }), { attempts: 3, baseMs: 220 });
   if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || e.message || 'タイムライン取得失敗'); }
@@ -281,7 +322,7 @@ async function apiGetTimeline(cursor = null) {
 
 async function apiGetDiscover(cursor = null) {
   const feedUri = 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot';
-  let url = `${BSKY_PUB}/app.bsky.feed.getFeed?feed=${encodeURIComponent(feedUri)}&limit=30`;
+  let url = `${getPublicApiBase()}/app.bsky.feed.getFeed?feed=${encodeURIComponent(feedUri)}&limit=30`;
   if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
   const res = await fetch(url, { headers: getAuth() });
   if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || e.message || 'Discoverフィード取得失敗'); }
@@ -295,7 +336,7 @@ async function apiGetVideoFeed(cursor = null) {
 
 async function apiGetAuthorFeed(actor, filter = 'posts_no_replies', cursor = null) {
   const t = actor.replace(/^@/, '');
-  let url = `${BSKY_PUB}/app.bsky.feed.getAuthorFeed?actor=${encodeURIComponent(t)}&limit=30&filter=${encodeURIComponent(filter)}`;
+  let url = `${getPublicApiBase()}/app.bsky.feed.getAuthorFeed?actor=${encodeURIComponent(t)}&limit=30&filter=${encodeURIComponent(filter)}`;
   if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
   const res = await fetch(url, { headers: getAuth() });
   if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || e.message || '投稿一覧取得失敗'); }
@@ -304,7 +345,7 @@ async function apiGetAuthorFeed(actor, filter = 'posts_no_replies', cursor = nul
 
 async function apiGetActorLikes(actor, cursor = null) {
   const t = actor.replace(/^@/, '');
-  let url = `${BSKY_PUB}/app.bsky.feed.getActorLikes?actor=${encodeURIComponent(t)}&limit=30`;
+  let url = `${getPublicApiBase()}/app.bsky.feed.getActorLikes?actor=${encodeURIComponent(t)}&limit=30`;
   if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
   const res = await fetch(url, { headers: getAuth() });
   if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || e.message || 'いいね一覧取得失敗'); }
@@ -312,7 +353,7 @@ async function apiGetActorLikes(actor, cursor = null) {
 }
 
 async function apiGetNotifications(cursor = null) {
-  let url = `${BSKY_PUB}/app.bsky.notification.listNotifications?limit=30`;
+  let url = `${getPublicApiBase()}/app.bsky.notification.listNotifications?limit=30`;
   if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
   const res = await withRetry(() => fetch(url, { headers: getAuth() }), { attempts: 3, baseMs: 300 });
   if (!res.ok) throw new Error(`通知取得失敗 (${res.status})`);
@@ -320,13 +361,13 @@ async function apiGetNotifications(cursor = null) {
 }
 
 async function apiGetUnreadCount() {
-  const res = await fetch(`${BSKY_PUB}/app.bsky.notification.getUnreadCount`, { headers: getAuth() });
+  const res = await fetch(`${getPublicApiBase()}/app.bsky.notification.getUnreadCount`, { headers: getAuth() });
   if (!res.ok) return { count: 0 };
   return res.json();
 }
 
 async function apiUpdateNotificationSeen() {
-  await fetch(`${BSKY_PUB}/app.bsky.notification.updateSeen`, {
+  await fetch(`${getPublicApiBase()}/app.bsky.notification.updateSeen`, {
     method: 'POST',
     headers: { ...getAuth(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ seenAt: new Date().toISOString() }),
@@ -334,7 +375,7 @@ async function apiUpdateNotificationSeen() {
 }
 
 async function apiSearchPosts(query, cursor = null, sort = 'top', signal = undefined) {
-  let url = `${BSKY_PUB}/app.bsky.feed.searchPosts?q=${encodeURIComponent(query)}&limit=25`;
+  let url = `${getPublicApiBase()}/app.bsky.feed.searchPosts?q=${encodeURIComponent(query)}&limit=25`;
   if (sort === 'latest') url += `&sort=latest`;
   if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
   const res = await withRetry(() => fetch(url, { headers: getAuth(), signal }), {
@@ -347,14 +388,14 @@ async function apiSearchPosts(query, cursor = null, sort = 'top', signal = undef
 }
 
 async function apiGetTrendingTopics(limit = 20, signal = undefined) {
-  const url = `${BSKY_PUB}/app.bsky.unspecced.getTrendingTopics?limit=${Math.max(5, Math.min(50, Number(limit || 20)))}`;
+  const url = `${getPublicApiBase()}/app.bsky.unspecced.getTrendingTopics?limit=${Math.max(5, Math.min(50, Number(limit || 20)))}`;
   const res = await fetch(url, { headers: getAuth(), signal });
   if (!res.ok) throw new Error(`トレンド取得失敗 (${res.status})`);
   return res.json();
 }
 
 async function apiSearchActors(query, cursor = null, signal = undefined) {
-  let url = `${BSKY_PUB}/app.bsky.actor.searchActors?q=${encodeURIComponent(query)}&limit=25`;
+  let url = `${getPublicApiBase()}/app.bsky.actor.searchActors?q=${encodeURIComponent(query)}&limit=25`;
   if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
   const res = await withRetry(() => fetch(url, { headers: getAuth(), signal }), {
     attempts: 2,
@@ -368,7 +409,7 @@ async function apiSearchActors(query, cursor = null, signal = undefined) {
 async function apiGetFollows(actor, cursor = null) {
   const s = loadSession();
   const t = (actor || s.handle).replace(/^@/, '');
-  let url = `${BSKY_PUB}/app.bsky.graph.getFollows?actor=${encodeURIComponent(t)}&limit=50`;
+  let url = `${getPublicApiBase()}/app.bsky.graph.getFollows?actor=${encodeURIComponent(t)}&limit=50`;
   if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
   const res = await fetch(url, { headers: getAuth() });
   if (!res.ok) throw new Error(`フォロー一覧取得失敗 (${res.status})`);
@@ -378,7 +419,7 @@ async function apiGetFollows(actor, cursor = null) {
 async function apiGetFollowers(actor, cursor = null) {
   const s = loadSession();
   const t = (actor || s.handle).replace(/^@/, '');
-  let url = `${BSKY_PUB}/app.bsky.graph.getFollowers?actor=${encodeURIComponent(t)}&limit=50`;
+  let url = `${getPublicApiBase()}/app.bsky.graph.getFollowers?actor=${encodeURIComponent(t)}&limit=50`;
   if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
   const res = await fetch(url, { headers: getAuth() });
   if (!res.ok) throw new Error(`フォロワー一覧取得失敗 (${res.status})`);
@@ -388,13 +429,13 @@ async function apiGetFollowers(actor, cursor = null) {
 async function apiGetLists(actor) {
   const s = loadSession();
   const t = (actor || s.handle).replace(/^@/, '');
-  const res = await fetch(`${BSKY_PUB}/app.bsky.graph.getLists?actor=${encodeURIComponent(t)}&limit=50`, { headers: getAuth() });
+  const res = await fetch(`${getPublicApiBase()}/app.bsky.graph.getLists?actor=${encodeURIComponent(t)}&limit=50`, { headers: getAuth() });
   if (!res.ok) throw new Error(`リスト取得失敗 (${res.status})`);
   return res.json();
 }
 
 async function apiGetListFeed(listUri, cursor = null) {
-  let url = `${BSKY_PUB}/app.bsky.feed.getListFeed?list=${encodeURIComponent(listUri)}&limit=30`;
+  let url = `${getPublicApiBase()}/app.bsky.feed.getListFeed?list=${encodeURIComponent(listUri)}&limit=30`;
   if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
   const res = await fetch(url, { headers: getAuth() });
   if (!res.ok) throw new Error(`リストフィード取得失敗 (${res.status})`);
@@ -406,7 +447,7 @@ async function apiGetListFeed(listUri, cursor = null) {
 // =============================================
 async function apiGetPostThread(uri, depth = 6) {
   const d = Math.max(1, Math.min(15, Number(depth) || 6));
-  const url = `${BSKY_PUB}/app.bsky.feed.getPostThread?uri=${encodeURIComponent(uri)}&depth=${d}&parentHeight=5`;
+  const url = `${getPublicApiBase()}/app.bsky.feed.getPostThread?uri=${encodeURIComponent(uri)}&depth=${d}&parentHeight=5`;
   const res = await fetch(url, { headers: getAuth() });
   if (!res.ok) throw new Error(`スレッド取得失敗 (${res.status})`);
   return res.json();
@@ -417,7 +458,7 @@ async function apiGetPostThread(uri, depth = 6) {
 //  ※ bsky.social/xrpc/ ではなく api.bsky.chat/xrpc/ を使う
 // =============================================
 async function apiGetConversations(cursor = null) {
-  let url = `${BSKY_CHAT}/chat.bsky.convo.listConvos?limit=20`;
+  let url = `${getChatApiBase()}/chat.bsky.convo.listConvos?limit=20`;
   if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
   const res = await withRetry(() => fetch(url, { headers: getChatAuth() }), { attempts: 3, baseMs: 280 });
   if (!res.ok) {
@@ -429,7 +470,7 @@ async function apiGetConversations(cursor = null) {
 }
 
 async function apiGetMessages(convoId, cursor = null) {
-  let url = `${BSKY_CHAT}/chat.bsky.convo.getMessages?convoId=${encodeURIComponent(convoId)}&limit=50`;
+  let url = `${getChatApiBase()}/chat.bsky.convo.getMessages?convoId=${encodeURIComponent(convoId)}&limit=50`;
   if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
   const res = await fetch(url, { headers: getChatAuth() });
   if (!res.ok) throw new Error(`メッセージ取得失敗 (${res.status})`);
@@ -437,7 +478,7 @@ async function apiGetMessages(convoId, cursor = null) {
 }
 
 async function apiSendMessage(convoId, text) {
-  const res = await fetch(`${BSKY_CHAT}/chat.bsky.convo.sendMessage`, {
+  const res = await fetch(`${getChatApiBase()}/chat.bsky.convo.sendMessage`, {
     method: 'POST',
     headers: getChatAuth(),
     body: JSON.stringify({ convoId, message: { $type: 'chat.bsky.convo.defs#messageInput', text } }),
@@ -449,7 +490,7 @@ async function apiSendMessage(convoId, text) {
 async function apiGetOrCreateConvoWithMember(memberDid) {
   const did = String(memberDid || '').trim();
   if (!did) throw new Error('DM対象ユーザーが不正です');
-  const url = `${BSKY_CHAT}/chat.bsky.convo.getConvoForMembers?members=${encodeURIComponent(did)}`;
+  const url = `${getChatApiBase()}/chat.bsky.convo.getConvoForMembers?members=${encodeURIComponent(did)}`;
   const res = await fetch(url, { headers: getChatAuth() });
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
@@ -468,7 +509,7 @@ async function apiUploadBlob(file) {
     throw new Error(`画像サイズが大きすぎます（最大 1,000,000 bytes / 現在 ${file.size.toLocaleString()} bytes）`);
   }
   const buf = await file.arrayBuffer();
-  const res = await fetch(`${BSKY_PUB}/com.atproto.repo.uploadBlob`, {
+  const res = await fetch(`${getPublicApiBase()}/com.atproto.repo.uploadBlob`, {
     method: 'POST',
     headers: { ...getAuth(), 'Content-Type': file.type },
     body: buf,
@@ -575,7 +616,7 @@ async function apiPost(text, images = [], replyTo = null, replyRestriction = nul
     };
   }
 
-  const res = await fetch(`${BSKY_PUB}/com.atproto.repo.createRecord`, {
+  const res = await fetch(`${getPublicApiBase()}/com.atproto.repo.createRecord`, {
     method: 'POST',
     headers: { ...getAuth(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo: s.did, collection: 'app.bsky.feed.post', record }),
@@ -595,7 +636,7 @@ async function apiSetThreadgate(postUri, restriction) {
   if (restriction === 'following')      allow.push({ $type: 'app.bsky.feed.threadgate#followingRule' });
   if (restriction === 'followers')      allow.push({ $type: 'app.bsky.feed.threadgate#followerRule' });
   if (restriction === 'mentionedUsers') allow.push({ $type: 'app.bsky.feed.threadgate#mentionRule' });
-  await fetch(`${BSKY_PUB}/com.atproto.repo.createRecord`, {
+  await fetch(`${getPublicApiBase()}/com.atproto.repo.createRecord`, {
     method: 'POST',
     headers: { ...getAuth(), 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -607,7 +648,7 @@ async function apiSetThreadgate(postUri, restriction) {
 
 async function apiDeletePost(uri) {
   const s = loadSession();
-  const res = await fetch(`${BSKY_PUB}/com.atproto.repo.deleteRecord`, {
+  const res = await fetch(`${getPublicApiBase()}/com.atproto.repo.deleteRecord`, {
     method: 'POST',
     headers: { ...getAuth(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo: s.did, collection: 'app.bsky.feed.post', rkey: uri.split('/').pop() }),
@@ -617,7 +658,7 @@ async function apiDeletePost(uri) {
 
 async function apiLike(uri, cid) {
   const s = loadSession();
-  const res = await fetch(`${BSKY_PUB}/com.atproto.repo.createRecord`, {
+  const res = await fetch(`${getPublicApiBase()}/com.atproto.repo.createRecord`, {
     method: 'POST',
     headers: { ...getAuth(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo: s.did, collection: 'app.bsky.feed.like', record: { $type: 'app.bsky.feed.like', subject: { uri, cid }, createdAt: new Date().toISOString() } }),
@@ -627,7 +668,7 @@ async function apiLike(uri, cid) {
 }
 async function apiUnlike(likeUri) {
   const s = loadSession();
-  await fetch(`${BSKY_PUB}/com.atproto.repo.deleteRecord`, {
+  await fetch(`${getPublicApiBase()}/com.atproto.repo.deleteRecord`, {
     method: 'POST',
     headers: { ...getAuth(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo: s.did, collection: 'app.bsky.feed.like', rkey: likeUri.split('/').pop() }),
@@ -636,7 +677,7 @@ async function apiUnlike(likeUri) {
 
 async function apiRepost(uri, cid) {
   const s = loadSession();
-  const res = await fetch(`${BSKY_PUB}/com.atproto.repo.createRecord`, {
+  const res = await fetch(`${getPublicApiBase()}/com.atproto.repo.createRecord`, {
     method: 'POST',
     headers: { ...getAuth(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo: s.did, collection: 'app.bsky.feed.repost', record: { $type: 'app.bsky.feed.repost', subject: { uri, cid }, createdAt: new Date().toISOString() } }),
@@ -646,7 +687,7 @@ async function apiRepost(uri, cid) {
 }
 async function apiUnrepost(repostUri) {
   const s = loadSession();
-  await fetch(`${BSKY_PUB}/com.atproto.repo.deleteRecord`, {
+  await fetch(`${getPublicApiBase()}/com.atproto.repo.deleteRecord`, {
     method: 'POST',
     headers: { ...getAuth(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo: s.did, collection: 'app.bsky.feed.repost', rkey: repostUri.split('/').pop() }),
@@ -655,7 +696,7 @@ async function apiUnrepost(repostUri) {
 
 async function apiFollow(did) {
   const s = loadSession();
-  const res = await fetch(`${BSKY_PUB}/com.atproto.repo.createRecord`, {
+  const res = await fetch(`${getPublicApiBase()}/com.atproto.repo.createRecord`, {
     method: 'POST',
     headers: { ...getAuth(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo: s.did, collection: 'app.bsky.graph.follow', record: { $type: 'app.bsky.graph.follow', subject: did, createdAt: new Date().toISOString() } }),
@@ -665,7 +706,7 @@ async function apiFollow(did) {
 }
 async function apiUnfollow(followUri) {
   const s = loadSession();
-  await fetch(`${BSKY_PUB}/com.atproto.repo.deleteRecord`, {
+  await fetch(`${getPublicApiBase()}/com.atproto.repo.deleteRecord`, {
     method: 'POST',
     headers: { ...getAuth(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo: s.did, collection: 'app.bsky.graph.follow', rkey: followUri.split('/').pop() }),

@@ -56,6 +56,8 @@ const REPLY_TEMPLATE_KEY = C.REPLY_TEMPLATE_KEY || 'skywebpro_reply_template_v1'
 const POST_QUEUE_KEY = C.POST_QUEUE_KEY || 'skywebpro_post_queue_v1';
 const DM_READ_STATE_KEY = C.DM_READ_STATE_KEY || 'skywebpro_dm_read_state_v1';
 const LOG_LEVEL_KEY = C.LOG_LEVEL_KEY || 'skywebpro_log_level_v1';
+const CONNECTION_MODE_PREF_KEY = 'skywebpro_connection_mode_v1';
+const CONNECTION_PROXY_BASE_PREF_KEY = 'skywebpro_connection_proxy_base_v1';
 const ADMIN_REPORT_HANDLE = C.ADMIN_REPORT_HANDLE || 'rino-program.bsky.social';
 const LOGIN_CONSOLE_MAX_LINES = Number(C.LOGIN_CONSOLE_MAX_LINES || 200);
 const POST_TEXT_MAX_CHARS = 300;
@@ -86,6 +88,8 @@ const SETTINGS_EXPORT_KEYS = [
   SEARCH_HISTORY_KEY,
   QUICK_NOTE_KEY,
   QUICK_NOTE_LIST_KEY,
+  CONNECTION_MODE_PREF_KEY,
+  CONNECTION_PROXY_BASE_PREF_KEY,
   'skywebpro_drafts_v1',
 ];
 const APP_MEMORY_STORAGE = new Map();
@@ -114,6 +118,84 @@ function safeStorageSet(key, value) {
     APP_MEMORY_STORAGE.set(key, value);
     return false;
   }
+}
+
+function getSafeConnectionConfig() {
+  if (typeof getConnectionConfig === 'function') {
+    try { return getConnectionConfig(); } catch {}
+  }
+  const modeRaw = String(safeStorageGet(CONNECTION_MODE_PREF_KEY) || 'direct').toLowerCase();
+  const mode = modeRaw === 'proxy' ? 'proxy' : 'direct';
+  const proxyBase = String(safeStorageGet(CONNECTION_PROXY_BASE_PREF_KEY) || '').trim();
+  const pubBase = mode === 'proxy' ? (proxyBase ? `${proxyBase.replace(/\/+$/, '')}/xrpc` : '') : 'https://bsky.social/xrpc';
+  const chatBase = mode === 'proxy' ? (proxyBase ? `${proxyBase.replace(/\/+$/, '')}/xrpc` : '') : 'https://api.bsky.chat/xrpc';
+  return { mode, proxyBase, pubBase, chatBase };
+}
+
+function syncConnectionModeUi() {
+  const cfg = getSafeConnectionConfig();
+  const isProxy = cfg.mode === 'proxy';
+
+  const loginMode = document.getElementById('login-connection-mode');
+  const loginProxy = document.getElementById('login-proxy-base');
+  const loginHint = document.getElementById('login-connection-hint');
+  if (loginMode) loginMode.value = cfg.mode;
+  if (loginProxy) {
+    loginProxy.value = cfg.proxyBase || '';
+    loginProxy.disabled = !isProxy;
+  }
+  if (loginHint) {
+    if (isProxy) {
+      loginHint.textContent = cfg.proxyBase
+        ? `現在: XServer経由 (${cfg.proxyBase})`
+        : '現在: XServer経由（URL未設定）';
+    } else {
+      loginHint.textContent = '現在: 直通モード';
+    }
+  }
+
+  const settingsMode = document.getElementById('settings-connection-mode');
+  const settingsProxy = document.getElementById('settings-proxy-base');
+  const settingsState = document.getElementById('settings-connection-state');
+  if (settingsMode) settingsMode.value = cfg.mode;
+  if (settingsProxy) {
+    settingsProxy.value = cfg.proxyBase || '';
+    settingsProxy.disabled = !isProxy;
+  }
+  if (settingsState) {
+    settingsState.textContent = isProxy
+      ? (cfg.proxyBase ? `XServer経由: ${cfg.proxyBase}` : 'XServer経由: URL未設定')
+      : '直通: bsky.social / api.bsky.chat';
+  }
+}
+
+function applyConnectionModeFromUi(source = 'settings') {
+  const modeEl = source === 'login'
+    ? document.getElementById('login-connection-mode')
+    : document.getElementById('settings-connection-mode');
+  const proxyEl = source === 'login'
+    ? document.getElementById('login-proxy-base')
+    : document.getElementById('settings-proxy-base');
+  const mode = String(modeEl?.value || 'direct').toLowerCase() === 'proxy' ? 'proxy' : 'direct';
+  const proxyBase = String(proxyEl?.value || '').trim();
+
+  if (typeof setConnectionMode === 'function') setConnectionMode(mode);
+  else safeStorageSet(CONNECTION_MODE_PREF_KEY, mode);
+
+  if (typeof setProxyBaseUrl === 'function') setProxyBaseUrl(proxyBase);
+  else safeStorageSet(CONNECTION_PROXY_BASE_PREF_KEY, proxyBase);
+
+  syncConnectionModeUi();
+
+  if (typeof clearFetchCache === 'function') {
+    try { clearFetchCache(); } catch {}
+  }
+
+  const cfg = getSafeConnectionConfig();
+  if (cfg.mode === 'proxy' && !cfg.proxyBase) {
+    return { ok: false, message: 'XServerベースURLを設定してください。' };
+  }
+  return { ok: true, message: '' };
 }
 
 function cacheKey(parts) {
@@ -1170,6 +1252,7 @@ async function init() {
   setPostDensityMode(getPostDensityMode());
   setShortcutsEnabled(getShortcutsEnabled());
   setShortcutPrefs(getShortcutPrefs());
+  syncConnectionModeUi();
   const sess = loadSession();
   applySavedUiPrefs();
   syncExperienceUi();
@@ -3652,6 +3735,12 @@ function bindAll() {
   document.getElementById('login-check-btn')?.addEventListener('click', handleLoginConnectivityCheck);
   document.getElementById('login-console-clear')?.addEventListener('click', clearLoginConsole);
   document.getElementById('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+  document.getElementById('login-connection-mode')?.addEventListener('change', () => {
+    applyConnectionModeFromUi('login');
+  });
+  document.getElementById('login-proxy-base')?.addEventListener('change', () => {
+    applyConnectionModeFromUi('login');
+  });
 
   // ログアウト
   document.getElementById('logout-btn').addEventListener('click', handleSidebarLogoutClick);
@@ -3821,6 +3910,22 @@ function bindAll() {
   document.getElementById('settings-inactivity-timeout')?.addEventListener('change', onInactivityTimeoutChange);
   document.getElementById('settings-post-density')?.addEventListener('change', onPostDensityModeChange);
   document.getElementById('settings-image-autoload')?.addEventListener('change', onImageAutoloadModeChange);
+  document.getElementById('settings-connection-mode')?.addEventListener('change', () => {
+    const result = applyConnectionModeFromUi('settings');
+    if (!result.ok) {
+      showToast(result.message, 'warn', 2200);
+      return;
+    }
+    showToast('接続モードを更新しました', 'success', 1400);
+  });
+  document.getElementById('settings-proxy-base')?.addEventListener('change', () => {
+    const result = applyConnectionModeFromUi('settings');
+    if (!result.ok) {
+      showToast(result.message, 'warn', 2200);
+      return;
+    }
+    showToast('XServer接続先を更新しました', 'success', 1400);
+  });
   document.getElementById('settings-shortcut-help')?.addEventListener('change', onShortcutPrefsChange);
   document.getElementById('settings-shortcut-search')?.addEventListener('change', onShortcutPrefsChange);
   document.getElementById('settings-shortcut-compose')?.addEventListener('change', onShortcutPrefsChange);
@@ -3907,6 +4012,12 @@ async function handleLogin() {
   const btn    = document.getElementById('login-btn');
   const errEl  = document.getElementById('login-error');
   errEl.classList.add('hidden');
+  const connResult = applyConnectionModeFromUi('login');
+  if (!connResult.ok) {
+    errEl.textContent = connResult.message;
+    errEl.classList.remove('hidden');
+    return;
+  }
   if (!handle || !pass) { errEl.textContent = 'ハンドルとアプリパスワードを入力してください'; errEl.classList.remove('hidden'); return; }
   setLoading(btn, true);
   const t0 = performance.now();
@@ -4016,9 +4127,48 @@ async function handleLoginConnectivityCheck() {
       lines.push(`- Storage: WARN (${e?.name || 'StorageError'}) localStorageが制限されています`);
     }
 
+    const cfg = getSafeConnectionConfig();
+    const rawHandle = String(handleInput?.value || '').replace(/^@/, '').trim();
+    let targets = null;
+    try {
+      if (typeof getConnectivityProbeTargets === 'function') {
+        targets = getConnectivityProbeTargets(rawHandle);
+      }
+    } catch (e) {
+      lines.push(`- 接続設定: ${e?.message || '設定エラー'}`);
+      renderLoginCheckResult(lines, 'err');
+      return;
+    }
+    if (!targets) {
+      if (cfg.mode === 'proxy') {
+        const base = String(cfg.proxyBase || '').replace(/\/+$/, '');
+        if (!base) {
+          lines.push('- 接続設定: XServerベースURLが未設定です。');
+          renderLoginCheckResult(lines, 'err');
+          return;
+        }
+        const root = `${base}/xrpc`;
+        targets = {
+          publicApi: `${root}/com.atproto.server.describeServer`,
+          chatApi: `${root}/chat.bsky.convo.listConvos?limit=1`,
+          resolveHandle: rawHandle
+            ? `${root}/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(rawHandle)}`
+            : '',
+        };
+      } else {
+        targets = {
+          publicApi: 'https://bsky.social/xrpc/com.atproto.server.describeServer',
+          chatApi: 'https://api.bsky.chat/xrpc/chat.bsky.convo.listConvos?limit=1',
+          resolveHandle: rawHandle
+            ? `https://bsky.social/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(rawHandle)}`
+            : '',
+        };
+      }
+    }
+
     const probes = await Promise.all([
-      runProbe('Public API', 'https://bsky.social/xrpc/com.atproto.server.describeServer'),
-      runProbe('Chat API', 'https://api.bsky.chat/xrpc/chat.bsky.convo.listConvos?limit=1', { acceptStatuses: [401, 403] }),
+      runProbe('Public API', targets.publicApi),
+      runProbe('Chat API', targets.chatApi, { acceptStatuses: [401, 403] }),
     ]);
 
     probes.forEach(p => {
@@ -4029,9 +4179,14 @@ async function handleLoginConnectivityCheck() {
       lines.push('- Chat API補足: 未ログイン/DM権限なしでは401/403が返るため、到達確認としては正常です。');
     }
 
-    const rawHandle = String(handleInput?.value || '').replace(/^@/, '').trim();
     if (rawHandle) {
-      const resolveUrl = `https://bsky.social/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(rawHandle)}`;
+      const resolveUrl = targets.resolveHandle;
+      if (!resolveUrl) {
+        lines.push('- Handle Resolve: スキップ（接続先未設定）');
+        renderLoginCheckResult(lines, 'warn');
+        console.info('[connectivity-check]', lines.join(' | '));
+        return;
+      }
       const h = await runProbe('Handle Resolve', resolveUrl);
       lines.push(`- Handle Resolve: ${h.status} ${h.statusText} (${h.elapsed}ms) / ${h.note}`.trim());
       if (h.ok) {

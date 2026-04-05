@@ -64,6 +64,18 @@
       </label>
       <input type="password" id="login-password" class="form-input" placeholder="xxxx-xxxx-xxxx-xxxx" autocomplete="current-password"/>
     </div>
+    <div class="form-group">
+      <label class="form-label">接続モード</label>
+      <select id="login-connection-mode" class="form-input" aria-label="接続モード">
+        <option value="direct">Bluesky へ直通</option>
+        <option value="proxy">XServer 経由</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">XServer ベースURL（経由モード時）</label>
+      <input type="url" id="login-proxy-base" class="form-input" placeholder="https://example.com/skyproxy" autocomplete="url"/>
+      <div id="login-connection-hint" class="settings-row-desc" style="margin-top:6px">現在: 直通モード</div>
+    </div>
     <div id="login-error" class="login-error hidden"></div>
     <button id="login-btn" class="btn-primary">
       <span class="btn-text">ログイン</span>
@@ -364,6 +376,8 @@
         <div class="settings-section">
           <h3 class="settings-section-title">アカウント</h3>
           <div class="settings-row"><div><div class="settings-row-label">接続中のアカウント</div><div class="settings-row-desc" id="settings-handle">—</div></div></div>
+          <div class="settings-row"><div><div class="settings-row-label">接続モード</div><div class="settings-row-desc">直通 / XServer経由を切り替え</div></div><select id="settings-connection-mode" class="restriction-select" title="接続モード"><option value="direct">直通</option><option value="proxy">XServer経由</option></select></div>
+          <div class="settings-row"><div><div class="settings-row-label">XServer ベースURL</div><div class="settings-row-desc" id="settings-connection-state">未設定</div></div><input id="settings-proxy-base" class="form-input" type="url" placeholder="https://example.com/skyproxy" style="max-width:320px"/></div>
           <div class="settings-row"><div><div class="settings-row-label">Bluesky設定</div><div class="settings-row-desc">ブロック・ミュート・コンテンツフィルター</div></div><a href="https://bsky.app/settings" target="_blank" rel="noopener noreferrer" class="btn-sm">開く↗</a></div>
           <div class="settings-row"><div><div class="settings-row-label">アプリパスワード管理</div><div class="settings-row-desc">DM対応パスワードの発行もここから</div></div><a href="https://bsky.app/settings/app-passwords" target="_blank" rel="noopener noreferrer" class="btn-sm">開く↗</a></div>
         </div>
