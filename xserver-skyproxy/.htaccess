@@ -1,0 +1,14 @@
+RewriteEngine On
+RewriteBase /skyproxy/
+
+# Authorization ヘッダをPHPへ渡す
+RewriteCond %{HTTP:Authorization} ^(.*)
+RewriteRule ^ - [E=HTTP_AUTHORIZATION:%1]
+
+# 既存ファイル/ディレクトリはそのまま
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# それ以外は入口PHPへ
+RewriteRule ^ index.php [QSA,L]

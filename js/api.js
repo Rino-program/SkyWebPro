@@ -227,7 +227,6 @@ async function apiLogin(identifier, password) {
 }
 
 async function apiRefreshSession(refreshJwt) {
-  const s = loadSession();
   const res = await fetch(`${getPublicApiBase()}/com.atproto.server.refreshSession`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${refreshJwt}` },

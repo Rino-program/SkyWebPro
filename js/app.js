@@ -58,6 +58,8 @@ const DM_READ_STATE_KEY = C.DM_READ_STATE_KEY || 'skywebpro_dm_read_state_v1';
 const LOG_LEVEL_KEY = C.LOG_LEVEL_KEY || 'skywebpro_log_level_v1';
 const CONNECTION_MODE_PREF_KEY = 'skywebpro_connection_mode_v1';
 const CONNECTION_PROXY_BASE_PREF_KEY = 'skywebpro_connection_proxy_base_v1';
+const ADVANCED_MODE_KEY = 'skywebpro_advanced_mode_v1';
+const ADVANCED_MODE_CODE = 'skyproxy-open';
 const ADMIN_REPORT_HANDLE = C.ADMIN_REPORT_HANDLE || 'rino-program.bsky.social';
 const LOGIN_CONSOLE_MAX_LINES = Number(C.LOGIN_CONSOLE_MAX_LINES || 200);
 const POST_TEXT_MAX_CHARS = 300;
@@ -120,6 +122,35 @@ function safeStorageSet(key, value) {
   }
 }
 
+function isAdvancedModeEnabled() {
+  return String(safeStorageGet(ADVANCED_MODE_KEY) || '') === '1';
+}
+
+function setAdvancedModeEnabled(enabled) {
+  safeStorageSet(ADVANCED_MODE_KEY, enabled ? '1' : '0');
+  syncAdvancedModeUi();
+  return enabled;
+}
+
+function clearAdvancedMode() {
+  safeStorageSet(ADVANCED_MODE_KEY, '0');
+  if (typeof setConnectionMode === 'function') setConnectionMode('direct');
+  else safeStorageSet(CONNECTION_MODE_PREF_KEY, 'direct');
+  syncAdvancedModeUi();
+}
+
+function syncAdvancedModeUi() {
+  const enabled = isAdvancedModeEnabled();
+  if (!enabled) {
+    if (typeof setConnectionMode === 'function') setConnectionMode('direct');
+    else safeStorageSet(CONNECTION_MODE_PREF_KEY, 'direct');
+  }
+  document.querySelectorAll('[data-advanced-only]').forEach(el => {
+    if (!(el instanceof HTMLElement)) return;
+    el.classList.toggle('hidden', !enabled);
+  });
+}
+
 function getSafeConnectionConfig() {
   if (typeof getConnectionConfig === 'function') {
     try { return getConnectionConfig(); } catch {}
@@ -133,7 +164,12 @@ function getSafeConnectionConfig() {
 }
 
 function syncConnectionModeUi() {
-  const cfg = getSafeConnectionConfig();
+  let cfg = getSafeConnectionConfig();
+  if (!isAdvancedModeEnabled() && cfg.mode === 'proxy') {
+    if (typeof setConnectionMode === 'function') setConnectionMode('direct');
+    else safeStorageSet(CONNECTION_MODE_PREF_KEY, 'direct');
+    cfg = getSafeConnectionConfig();
+  }
   const isProxy = cfg.mode === 'proxy';
 
   const loginMode = document.getElementById('login-connection-mode');
@@ -167,6 +203,8 @@ function syncConnectionModeUi() {
       ? (cfg.proxyBase ? `XServer経由: ${cfg.proxyBase}` : 'XServer経由: URL未設定')
       : '直通: bsky.social / api.bsky.chat';
   }
+
+  syncAdvancedModeUi();
 }
 
 function applyConnectionModeFromUi(source = 'settings') {
@@ -1408,7 +1446,6 @@ function getAdaptiveBootTab() {
     ['notifications', st.notifications],
     ['profile', st.profile],
   ];
-  const total = entries.reduce((sum, [, v]) => sum + v, 0);
   entries.sort((a, b) => b[1] - a[1]);
   return entries[0][0] || getBootTab();
 }
@@ -3580,6 +3617,7 @@ function handleSettingsLogoutClick() {
 function handleLogout(options = {}) {
   const preserveCompose = options?.preserveCompose === true;
   clearSession(); S.session = null; S.myProfile = null;
+  clearAdvancedMode();
   if (!preserveCompose) clearComposeCache();
   clearFetchCache();
   stopNotifPoll();
@@ -4007,11 +4045,22 @@ function bindAll() {
 }
 
 async function handleLogin() {
-  const handle = document.getElementById('login-handle').value;
+  const handleInput = document.getElementById('login-handle');
+  const handle = String(handleInput?.value || '');
+  const normalizedHandle = handle.replace(/^@/, '').trim();
   const pass   = document.getElementById('login-password').value;
   const btn    = document.getElementById('login-btn');
   const errEl  = document.getElementById('login-error');
   errEl.classList.add('hidden');
+
+  if (normalizedHandle === ADVANCED_MODE_CODE) {
+    setAdvancedModeEnabled(true);
+    if (handleInput) handleInput.value = '';
+    document.getElementById('login-password').value = '';
+    showToast('拡張モードを有効化しました', 'success', 1400);
+    return;
+  }
+
   const connResult = applyConnectionModeFromUi('login');
   if (!connResult.ok) {
     errEl.textContent = connResult.message;
