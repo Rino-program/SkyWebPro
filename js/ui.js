@@ -22,7 +22,7 @@ function autoLinkText(text) {
 function buildSafeBannerStyle(url) {
   const safe = sanitizeHttpUrl(url);
   return safe
-    ? `background-image:url('${escapeHtml(safe)}');background-size:auto 100%;background-position:center center;background-repeat:no-repeat`
+    ? `background-image:url('${escapeHtml(safe)}');background-size:cover;background-position:center center;background-repeat:no-repeat`
     : '';
 }
 
@@ -177,15 +177,17 @@ function renderImagesGrid(images) {
     fullsize: sanitizeHttpUrl(img.fullsize || img.thumb || ''),
     thumb: sanitizeHttpUrl(img.thumb || img.fullsize || ''),
     alt: String(img.alt || '').trim() || `投稿画像 ${idx + 1}`,
+    ratioW: Number(img?.aspectRatio?.width) > 0 ? Number(img.aspectRatio.width) : 0,
+    ratioH: Number(img?.aspectRatio?.height) > 0 ? Number(img.aspectRatio.height) : 0,
   }));
   const json = escapeHtml(JSON.stringify(safeImages.map(img => ({ fullsize: img.fullsize, alt: img.alt }))));
   if (!shouldAutoLoadFeedImages()) {
     return `<div class="post-images count-${n}" data-images-json="${json}">${safeImages.map((img, idx) =>
-      `<div class="img-item cursor-pointer hidden" data-img-index="${idx}"><img data-src="${escapeHtml(img.thumb)}" alt="${escapeHtml(img.alt)}" width="640" height="640" loading="lazy" decoding="async" fetchpriority="low" style="aspect-ratio:1/1" onerror="this.parentElement.style.display='none'"/></div>`
+      `<div class="img-item cursor-pointer hidden" data-img-index="${idx}"><img data-src="${escapeHtml(img.thumb)}" alt="${escapeHtml(img.alt)}" ${img.ratioW > 0 && img.ratioH > 0 ? `width="${img.ratioW}" height="${img.ratioH}" style="aspect-ratio:${img.ratioW}/${img.ratioH}"` : ''} loading="lazy" decoding="async" fetchpriority="low" onerror="this.parentElement.style.display='none'"/></div>`
     ).join('')}<div class="post-images-blocked"><button class="btn-sm load-images-btn" type="button">画像を読み込む</button></div></div>`;
   }
   return `<div class="post-images count-${n}" data-images-json="${json}">${safeImages.map((img, idx) =>
-    `<div class="img-item cursor-pointer" data-img-index="${idx}"><img src="${escapeHtml(img.thumb)}" alt="${escapeHtml(img.alt)}" width="640" height="640" loading="lazy" decoding="async" fetchpriority="low" style="aspect-ratio:1/1" onerror="this.parentElement.style.display='none'"/></div>`
+    `<div class="img-item cursor-pointer" data-img-index="${idx}"><img src="${escapeHtml(img.thumb)}" alt="${escapeHtml(img.alt)}" ${img.ratioW > 0 && img.ratioH > 0 ? `width="${img.ratioW}" height="${img.ratioH}" style="aspect-ratio:${img.ratioW}/${img.ratioH}"` : ''} loading="lazy" decoding="async" fetchpriority="low" onerror="this.parentElement.style.display='none'"/></div>`
   ).join('')}</div>`;
 }
 

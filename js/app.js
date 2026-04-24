@@ -2207,7 +2207,7 @@ async function loadMyProfile() {
     if (banner) {
       if (p.banner) {
         banner.style.backgroundImage = `url(${p.banner})`;
-        banner.style.backgroundSize = 'auto 100%';
+        banner.style.backgroundSize = 'cover';
         banner.style.backgroundRepeat = 'no-repeat';
         banner.style.backgroundPosition = 'center center';
       } else {
@@ -3032,7 +3032,7 @@ function handleImageSelect(e) {
   const sizeOk = validImages.filter(f => f.size <= APP_MAX_IMAGE_BYTES);
   const rejected = validImages.length - sizeOk.length;
   S.pendingImgs.push(...sizeOk.slice(0, rem));
-  if (rejected > 0) showToast(`1MBを超える画像を ${rejected} 枚除外しました`, 'info');
+  if (rejected > 0) showToast(`2MBを超える画像を ${rejected} 枚除外しました`, 'info');
   if (sizeOk.length > rem) showToast(`画像は最大4枚です。${Math.max(0,rem)}枚追加しました。`, 'info');
   renderPreviews();
   refreshRightStats();
@@ -3054,7 +3054,7 @@ function handleComposeImagePaste(e) {
   const rejected = images.length - sizeOk.length;
   S.pendingImgs.push(...sizeOk.slice(0, rem));
 
-  if (rejected > 0) showToast(`1MBを超える画像を ${rejected} 枚除外しました`, 'info');
+  if (rejected > 0) showToast(`2MBを超える画像を ${rejected} 枚除外しました`, 'info');
   if (sizeOk.length > rem) showToast(`画像は最大4枚です。${Math.max(0, rem)}枚追加しました。`, 'info');
   renderPreviews();
   refreshRightStats();
@@ -3067,7 +3067,7 @@ function handleQuickImageSelect(e) {
   const sizeOk = validImages.filter(f => f.size <= APP_MAX_IMAGE_BYTES);
   const rejected = validImages.length - sizeOk.length;
   S.quickPendingImgs.push(...sizeOk.slice(0, rem));
-  if (rejected > 0) showToast(`1MBを超える画像を ${rejected} 枚除外しました`, 'info');
+  if (rejected > 0) showToast(`2MBを超える画像を ${rejected} 枚除外しました`, 'info');
   if (sizeOk.length > rem) showToast(`画像は最大4枚です。${Math.max(0,rem)}枚追加しました。`, 'info');
   renderQuickPreviews();
   e.target.value = '';

@@ -25,7 +25,7 @@ const ACTIVE_SESSION_DID_KEY = 'skywebpro_active_session_did_v1';
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const LEGACY_SESSION_KEYS = ['skywebpro_session_v3'];
 const LEGACY_DRAFT_KEYS = ['skywebpro_drafts_v2'];
-const MAX_IMAGE_BYTES = 1000000;
+const MAX_IMAGE_BYTES = 2000000;
 const IMAGE_UPLOAD_RETRY_ATTEMPTS = 2;
 const API_MEMORY_STORAGE = new Map();
 
@@ -710,7 +710,7 @@ async function apiGetOrCreateConvoWithMember(memberDid) {
 async function apiUploadBlob(file) {
   if (!file || typeof file.size !== 'number') throw new Error('画像ファイルが不正です');
   if (file.size > MAX_IMAGE_BYTES) {
-    throw new Error(`画像サイズが大きすぎます（最大 1,000,000 bytes / 現在 ${file.size.toLocaleString()} bytes）`);
+    throw new Error(`画像サイズが大きすぎます（最大 2,000,000 bytes / 現在 ${file.size.toLocaleString()} bytes）`);
   }
   const buf = await file.arrayBuffer();
   const res = await fetch(`${getPublicApiBase()}/com.atproto.repo.uploadBlob`, {

@@ -7,7 +7,7 @@
     QUICK_NOTE_KEY: 'skywebpro_quick_note_v1',
     QUICK_NOTE_LIST_KEY: 'skywebpro_quick_note_list_v1',
     THEME_KEY: 'skywebpro_theme_v1',
-    APP_MAX_IMAGE_BYTES: 1000000,
+    APP_MAX_IMAGE_BYTES: 2000000,
     RIGHT_PANEL_PREFS_KEY: 'skywebpro_right_panel_prefs_v1',
     POST_HISTORY_KEY: 'skywebpro_post_history_v1',
     SEARCH_HISTORY_KEY: 'skywebpro_search_history_v1',
