@@ -3154,9 +3154,16 @@ function setReply(uri, cid, handle) {
   document.getElementById('reply-ctx').classList.remove('hidden');
   document.getElementById('reply-to-text').textContent = `@${handle} への返信`;
   document.getElementById('compose-text').focus();
-  withAuth(() => apiGetPostThread(uri, 0)).then(d => {
-    const root = d.thread?.root?.post;
-    if (root) { S.replyTarget.rootUri = root.uri; S.replyTarget.rootCid = root.cid; }
+  // depth=15に変更してスレッド全体を取得し、root情報を確実に更新する
+  withAuth(() => apiGetPostThread(uri, 15)).then(d => {
+    const thread = d.thread;
+    // スレッドの根ツイートを取得（深いリプライの場合）
+    let root = thread?.post;
+    if (thread?.root?.post) root = thread.root.post;
+    if (root && (root.uri !== uri || root.cid !== cid)) {
+      S.replyTarget.rootUri = root.uri;
+      S.replyTarget.rootCid = root.cid;
+    }
   }).catch(() => {});
 }
 

@@ -228,7 +228,11 @@ function renderPostCard(item, myDid, opts = {}) {
   const record = post.record;
   const isRepost = item.reason?.$type === 'app.bsky.feed.defs#reasonRepost';
   const repostBy = isRepost ? item.reason.by : null;
-  const replyHandle = record.reply ? (item.reply?.parent?.author?.handle || null) : null;
+  // 親情報を複数のソースから取得：item.reply または record.reply.parent から
+  let replyHandle = null;
+  if (record.reply) {
+    replyHandle = item.reply?.parent?.author?.handle || null;
+  }
 
   const images    = getEmbedImages(post.embed);
   const quoteHtml = renderQuoteEmbed(post.embed);
@@ -318,7 +322,8 @@ function renderThreadNode(thread, myDid, depth = 0) {
   if (!thread?.post) return '';
   const maxDepth = 15;
   const replyChunkSize = 3;
-  let html = renderPostCard({ post: thread.post, reply: thread.parent ? { parent: thread.parent?.post } : undefined }, myDid, { depth, isThread: true });
+  // 親情報を常に渡す（undefined の場合でもOK、renderPostCard で処理される）
+  let html = renderPostCard({ post: thread.post, reply: { parent: thread.parent?.post } }, myDid, { depth, isThread: true });
 
   if (thread.replies?.length && depth < maxDepth) {
     const visible = thread.replies.slice(0, replyChunkSize);
