@@ -26,6 +26,7 @@ const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const LEGACY_SESSION_KEYS = ['skywebpro_session_v3'];
 const LEGACY_DRAFT_KEYS = ['skywebpro_drafts_v2'];
 const MAX_IMAGE_BYTES = 2000000;
+const MAX_VIDEO_BYTES = 50000000;
 const IMAGE_UPLOAD_RETRY_ATTEMPTS = 2;
 const API_MEMORY_STORAGE = new Map();
 
@@ -533,6 +534,14 @@ async function apiGetDiscover(cursor = null) {
   return res.json();
 }
 
+async function apiGetFeed(feedUri, cursor = null) {
+  let url = `${getPublicApiBase()}/app.bsky.feed.getFeed?feed=${encodeURIComponent(feedUri)}&limit=30`;
+  if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
+  const res = await fetch(url, { headers: getAuth() });
+  if (!res.ok) throw new Error(`カスタムフィード取得失敗 (${res.status})`);
+  return res.json();
+}
+
 async function apiGetVideoFeed(cursor = null) {
   // 動画フィードは取得できないケースが多いのでFollowingにフォールバック
   return apiGetTimeline(cursor);
@@ -638,6 +647,37 @@ async function apiGetLists(actor) {
   return res.json();
 }
 
+async function apiGetListMembers(listUri, cursor = null) {
+  let url = `${getPublicApiBase()}/app.bsky.graph.getList?list=${encodeURIComponent(listUri)}&limit=50`;
+  if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
+  const res = await fetch(url, { headers: getAuth() });
+  if (!res.ok) throw new Error(`リストメンバー取得失敗 (${res.status})`);
+  return res.json();
+}
+
+async function apiAddListMember(listUri, did) {
+  const s = loadSession();
+  const res = await fetch(`${getPublicApiBase()}/com.atproto.repo.createRecord`, {
+    method: 'POST',
+    headers: { ...getAuth(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo: s.did, collection: 'app.bsky.graph.listitem', record: {
+      $type: 'app.bsky.graph.listitem', list: listUri, subject: did, createdAt: new Date().toISOString(),
+    } }),
+  });
+  if (!res.ok) throw new Error('リストメンバー追加失敗');
+  return res.json();
+}
+
+async function apiRemoveListMember(memberUri) {
+  const s = loadSession();
+  const res = await fetch(`${getPublicApiBase()}/com.atproto.repo.deleteRecord`, {
+    method: 'POST',
+    headers: { ...getAuth(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo: s.did, collection: 'app.bsky.graph.listitem', rkey: memberUri.split('/').pop() }),
+  });
+  if (!res.ok) throw new Error('リストメンバー削除失敗');
+}
+
 async function apiGetListFeed(listUri, cursor = null) {
   let url = `${getPublicApiBase()}/app.bsky.feed.getListFeed?list=${encodeURIComponent(listUri)}&limit=30`;
   if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
@@ -681,14 +721,33 @@ async function apiGetMessages(convoId, cursor = null) {
   return res.json();
 }
 
-async function apiSendMessage(convoId, text) {
+async function apiSendMessage(convoId, text, replyTo = null) {
+  const message = { $type: 'chat.bsky.convo.defs#messageInput', text };
+  if (replyTo?.id) {
+    message.replyTo = {
+      $type: 'chat.bsky.convo.defs#messageRef',
+      convoId: String(convoId),
+      messageId: String(replyTo.id),
+    };
+  }
+
   const res = await fetch(`${getChatApiBase()}/chat.bsky.convo.sendMessage`, {
     method: 'POST',
     headers: getChatAuth(),
-    body: JSON.stringify({ convoId, message: { $type: 'chat.bsky.convo.defs#messageInput', text } }),
+    body: JSON.stringify({ convoId, message }),
   });
   if (!res.ok) throw new Error(`メッセージ送信失敗 (${res.status})`);
   return res.json();
+}
+
+async function apiTranslateText(text, target = 'ja') {
+  const source = String(text || '').trim();
+  if (!source) return '';
+  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${encodeURIComponent(target)}&dt=t&q=${encodeURIComponent(source)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`翻訳API呼び出し失敗 (${res.status})`);
+  const data = await res.json();
+  return Array.isArray(data?.[0]) ? data[0].map(row => String(row?.[0] || '')).join('') : '';
 }
 
 async function apiGetOrCreateConvoWithMember(memberDid) {
@@ -710,8 +769,9 @@ async function apiGetOrCreateConvoWithMember(memberDid) {
 async function apiUploadBlob(file) {
   if (!file || typeof file.size !== 'number') throw new Error('画像ファイルが不正です');
   const isProxyMode = getConnectionMode() === CONNECTION_MODE_PROXY;
-  if (!isProxyMode && file.size > MAX_IMAGE_BYTES) {
-    throw new Error(`画像サイズが大きすぎます（最大 2,000,000 bytes / 現在 ${file.size.toLocaleString()} bytes）`);
+  const maxBytes = String(file.type || '').startsWith('video/') ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+  if (!isProxyMode && file.size > maxBytes) {
+    throw new Error(`${String(file.type || '').startsWith('video/') ? '動画' : '画像'}サイズが大きすぎます（最大 ${maxBytes.toLocaleString()} bytes / 現在 ${file.size.toLocaleString()} bytes）`);
   }
   const buf = await file.arrayBuffer();
   const res = await fetch(`${getPublicApiBase()}/com.atproto.repo.uploadBlob`, {
@@ -792,10 +852,11 @@ async function apiPost(text, images = [], replyTo = null, replyRestriction = nul
     const imgs = [];
     const failedUploads = [];
     for (let i = 0; i < images.slice(0, 4).length; i += 1) {
-      const f = images[i];
+      const entry = images[i];
+      const f = entry?.file || entry;
       try {
         const blob = await apiUploadBlobWithRetry(f, IMAGE_UPLOAD_RETRY_ATTEMPTS);
-        imgs.push({ alt: '', image: blob });
+        imgs.push({ alt: String(entry?.alt || ''), image: blob });
       } catch (e) {
         failedUploads.push({ index: i, name: String(f?.name || `image-${i + 1}`), reason: e?.message || 'upload_failed' });
       }
@@ -806,7 +867,11 @@ async function apiPost(text, images = [], replyTo = null, replyRestriction = nul
       err.failedUploads = failedUploads;
       throw err;
     }
-    record.embed = { $type: 'app.bsky.embed.images', images: imgs };
+    if (images.length === 1 && String(images[0]?.file?.type || images[0]?.type || '').startsWith('video/')) {
+      record.embed = { $type: 'app.bsky.embed.video', video: imgs[0].image, alt: imgs[0].alt };
+    } else {
+      record.embed = { $type: 'app.bsky.embed.images', images: imgs };
+    }
   } else if (quoteUri && quoteCid) {
     record.embed = {
       $type: 'app.bsky.embed.record',

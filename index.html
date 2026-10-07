@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=5.0,user-scalable=yes,viewport-fit=cover"/>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https: wss: https://www.google-analytics.com https://region1.google-analytics.com; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"/>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https: wss: https://www.google-analytics.com https://region1.google-analytics.com; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://cdn.jsdelivr.net; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"/>
   <meta name="referrer" content="strict-origin-when-cross-origin"/>
   <meta http-equiv="Permissions-Policy" content="geolocation=(), microphone=(), camera=(), payment=(), usb=()"/>
   <meta name="theme-color" content="#0085ff" media="(prefers-color-scheme: light)"/>
@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="apple-mobile-web-app-title" content="SkyWebPro"/>
   <meta name="mobile-web-app-capable" content="yes"/>
-  <title>SkyWebPro — Bluesky Client</title>
+  <title>SkyWebPro — Bluesky Client v0.1.0</title>
   <link rel="icon" type="image/svg+xml" href="assets/skywebpro-mark.svg"/>
   <link rel="apple-touch-icon" href="assets/icon-192.png"/>
   <link rel="manifest" href="manifest.webmanifest"/>
@@ -121,6 +121,9 @@
       <button class="nav-item" data-tab="dm">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>DM</span>
       </button>
+      <button class="nav-item" data-tab="bookmarks">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4z"/></svg><span>ブックマーク</span>
+      </button>
       <button class="nav-item" data-tab="lists">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg><span>リスト</span>
       </button>
@@ -167,7 +170,7 @@
               <div class="compose-tool-icons">
                 <label class="tool-btn" title="画像を追加（最大4枚）">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><polyline points="21 15 16 10 5 21"/></svg>
-                  <input type="file" id="image-input" accept="image/*" multiple style="display:none"/>
+                  <input type="file" id="image-input" accept="image/*,video/*" multiple style="display:none"/>
                 </label>
                 <button id="save-draft-btn" class="tool-btn" title="下書き保存">
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
@@ -222,6 +225,7 @@
         <div class="sub-tabs">
           <button class="sub-tab" data-sub="discover">Discover</button>
           <button class="sub-tab active" data-sub="following">Following</button>
+          <button class="sub-tab" data-sub="custom">カスタム</button>
           <button class="sub-tab" data-sub="pinned" id="home-pinned-subtab" title="固定キーワードの検索結果">固定</button>
         </div>
         <button id="home-pinned-edit" class="btn-sm" type="button" title="固定キーワードを変更">固定語を変更</button>
@@ -298,14 +302,23 @@
       <div id="dm-chat-panel" class="dm-chat-panel hidden">
         <div class="dm-chat-header">
           <button id="dm-back-btn" class="icon-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
-          <span>メッセージ</span>
+          <img id="dm-chat-avatar" class="dm-chat-avatar" src="" alt=""/>
+          <div class="dm-chat-person"><strong id="dm-chat-name">メッセージ</strong><span id="dm-chat-handle"></span></div>
         </div>
         <div id="dm-messages" class="dm-messages"></div>
         <div class="dm-input-area">
+          <div id="dm-reply-context" class="dm-reply-context hidden"><span id="dm-reply-text"></span><button id="dm-reply-cancel" class="icon-btn" type="button">×</button></div>
           <textarea id="dm-input" class="dm-input" placeholder="メッセージを入力… (Enterで送信)" rows="2"></textarea>
           <button id="dm-send-btn" class="btn-post">送信</button>
         </div>
       </div>
+    </section>
+
+    <section id="tab-bookmarks" class="tab-section hidden">
+      <div class="section-head">
+        <h2 class="section-title">ブックマーク</h2>
+      </div>
+      <div id="bookmarks-feed" class="feed"></div>
     </section>
 
     <!-- ===== LISTS ===== -->
@@ -375,6 +388,8 @@
       <div class="settings-body">
         <div class="settings-section">
           <h3 class="settings-section-title">アカウント</h3>
+          <div class="settings-row"><div style="width:100%"><div class="settings-row-label">ミュートワード</div><div class="settings-row-desc">本文・表示名・ハンドルに含まれる語をフィードから除外します</div><div style="display:flex;gap:8px;margin-top:8px"><input id="muted-word-input" class="form-input" type="text" maxlength="80" placeholder="例: spoiler"/><button id="muted-word-add" class="btn-sm" type="button">追加</button></div><div id="muted-words-list" class="settings-chip-list"></div></div></div>
+          <div class="settings-row"><div style="width:100%"><div class="settings-row-label">カスタムフィード購読</div><div class="settings-row-desc">Feed Generatorのat:// URIを登録し、カスタムタブで表示します</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><input id="custom-feed-name" class="form-input" type="text" placeholder="表示名" style="max-width:180px"/><input id="custom-feed-uri" class="form-input" type="text" placeholder="at://did/app.bsky.feed.generator/name" style="flex:1;min-width:220px"/><button id="custom-feed-add" class="btn-sm" type="button">購読</button></div><div id="custom-feeds-list" class="settings-chip-list"></div></div></div>
           <div class="settings-row"><div><div class="settings-row-label">接続中のアカウント</div><div class="settings-row-desc" id="settings-handle">—</div></div></div>
           <div class="settings-row"><div><div class="settings-row-label">利用アカウント切り替え</div><div class="settings-row-desc">複数ログイン状態を保持し、利用対象のみ切り替えます</div></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end"><select id="settings-account-switch-select" class="restriction-select" title="利用アカウント" style="min-width:220px;max-width:320px"></select><button id="settings-account-switch-btn" class="btn-sm" type="button">切り替え</button></div></div>
           <div class="settings-row"><div style="width:100%"><div class="settings-row-label">アカウントを追加</div><div class="settings-row-desc">追加後も現在のアカウントは保持されます</div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px"><input id="settings-add-account-handle" class="form-input" type="text" placeholder="yourname.bsky.social" autocomplete="username" style="max-width:260px"/><input id="settings-add-account-password" class="form-input" type="password" placeholder="アプリパスワード" autocomplete="current-password" style="max-width:260px"/><button id="settings-add-account-btn" class="btn-sm" type="button">追加</button></div></div></div>
@@ -407,7 +422,8 @@
           <div class="settings-row"><div><div class="settings-row-label">起動時タブ</div><div class="settings-row-desc">自動最適化または前回タブ固定を選択</div></div><select id="settings-startup-tab-mode" class="restriction-select" title="起動時タブ"><option value="auto">自動最適化</option><option value="manual">前回タブを開く</option></select></div>
           <div class="settings-row"><div><div class="settings-row-label">自動ログアウト（無操作）</div><div class="settings-row-desc">一定時間操作がない場合にログアウトします</div></div><select id="settings-inactivity-timeout" class="restriction-select" title="自動ログアウト"><option value="0">オフ</option><option value="15">15分</option><option value="30">30分</option><option value="60">60分</option></select></div>
           <div class="settings-row"><div><div class="settings-row-label">投稿カード密度</div><div class="settings-row-desc">1画面の情報量を調整します</div></div><select id="settings-post-density" class="restriction-select" title="投稿カード密度"><option value="normal">標準</option><option value="compact">コンパクト</option></select></div>
-          <div class="settings-row"><div><div class="settings-row-label">画像自動読み込み</div><div class="settings-row-desc">通信量を抑えるため読み込み条件を変更</div></div><select id="settings-image-autoload" class="restriction-select" title="画像自動読み込み"><option value="always">常に読み込む</option><option value="wifi">Wi-Fi時のみ自動</option></select></div>
+          <div class="settings-row"><div><div class="settings-row-label">画像自動読み込み</div><div class="settings-row-desc">通信量を抑えるため読み込み条件を変更</div></div><select id="settings-image-autoload" class="restriction-select" title="画像自動読み込み"><option value="always">常に読み込む</option><option value="wifi">Wi-Fi時のみ自動</option><option value="hidden">非表示（押した時だけ読み込む）</option></select></div>
+          <div class="settings-row"><div><div class="settings-row-label">翻訳モード</div><div class="settings-row-desc">日本語以外の投稿を取得後に翻訳して表示します</div></div><label class="right-toggle"><input id="settings-translation-mode" type="checkbox"/> 有効</label></div>
         </div>
         <div class="settings-section">
           <h3 class="settings-section-title">日本最適化と個人最適化</h3>
@@ -439,7 +455,9 @@
     <button class="mobile-nav-item" data-tab="notifications" aria-label="通知">通知</button>
     <button class="mobile-nav-item" data-tab="search" aria-label="検索">検索</button>
     <button class="mobile-nav-item" data-tab="dm" aria-label="DM">DM</button>
+    <button class="mobile-nav-item" data-tab="bookmarks" aria-label="ブックマーク">保存</button>
     <button class="mobile-nav-item" data-tab="profile" aria-label="プロフィール">プロフィール</button>
+    <button class="mobile-nav-item" data-tab="settings" aria-label="設定">設定</button>
   </nav>
 
   <div id="main-width-resizer" class="main-width-resizer hidden" title="投稿表示幅を調整"></div>
@@ -471,7 +489,7 @@
         <label class="tool-btn" title="画像を追加（最大4枚）" style="flex:1;background:var(--primary-s);border-radius:var(--rs);padding:8px;text-align:center;cursor:pointer;font-size:.8rem;font-weight:600;color:var(--primary)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><polyline points="21 15 16 10 5 21"/></svg>
           <span>画像追加</span>
-          <input type="file" id="quick-post-image-input" accept="image/*" multiple style="display:none"/>
+          <input type="file" id="quick-post-image-input" accept="image/*,video/*" multiple style="display:none"/>
         </label>
         <select id="quick-post-restriction" class="restriction-select" title="返信できるユーザーを設定" style="flex:1;padding:8px">
           <option value="everybody">全員が返信可</option>
@@ -686,6 +704,24 @@
     <div class="image-viewer-container">
       <img id="image-viewer-img" src="" alt="画像" class="image-viewer-img"/>
     </div>
+
+    <div id="list-members-modal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <h3 id="list-members-title" class="modal-title">リストのメンバー</h3>
+        <div style="display:flex;gap:8px;margin-bottom:10px"><input id="list-member-did" class="form-input" placeholder="did:plc:... またはハンドル"/><button id="list-member-add" class="btn-sm" type="button">追加</button></div>
+        <div id="list-members-list"></div>
+        <div class="modal-actions"><button id="list-members-close" class="btn-modal-cancel" type="button">閉じる</button></div>
+      </div>
+
+      <div id="profile-list-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+          <h3 id="profile-list-title" class="modal-title">ユーザー一覧</h3>
+          <select id="profile-list-sort" class="form-input" aria-label="並び替え"><option value="recent">最近</option><option value="name">名前順</option><option value="handle">ハンドル順</option></select>
+          <div id="profile-list-items"></div>
+          <div class="modal-actions"><button id="profile-list-close" class="btn-modal-cancel" type="button">閉じる</button></div>
+        </div>
+      </div>
+    </div>
     <div id="image-viewer-nav" class="image-viewer-nav hidden">
       <button id="image-viewer-prev" class="image-viewer-btn" type="button">‹</button>
       <div id="image-viewer-counter" class="image-viewer-counter"></div>
@@ -697,6 +733,7 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
 <script src="js/api.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/ui.js"></script>

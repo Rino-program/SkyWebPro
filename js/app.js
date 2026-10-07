@@ -6,12 +6,16 @@ const S = {
   session: null, myProfile: null,
   tab: 'home', homeSubTab: 'following', notifSubTab: 'all', searchTab: 'posts', profileSubTab: 'posts',
   replyTarget: null, pendingImgs: [], quickPendingImgs: [], deleteTarget: null,
+  failedImageIndexes: [],
+  translatedPosts: new Map(), dmReplyTarget: null,
   cursors: {}, loading: {},
   activeConvoId: null,
   cachedNotifs: [],
   statsRange: 'week',
   navChordActive: false,
   navChordTimer: null,
+  searchQuery: '',
+  customFeedUri: '',
   dmStartDid: null,
   trendCategory: 'all',
   searchComposing: false,
@@ -29,6 +33,7 @@ const QUICK_NOTE_KEY = C.QUICK_NOTE_KEY || 'skywebpro_quick_note_v1';
 const QUICK_NOTE_LIST_KEY = C.QUICK_NOTE_LIST_KEY || 'skywebpro_quick_note_list_v1';
 const THEME_KEY = C.THEME_KEY || 'skywebpro_theme_v1';
 const APP_MAX_IMAGE_BYTES = Number(C.APP_MAX_IMAGE_BYTES || 2000000);
+const APP_MAX_VIDEO_BYTES = Number(C.APP_MAX_VIDEO_BYTES || 50000000);
 const RIGHT_PANEL_PREFS_KEY = C.RIGHT_PANEL_PREFS_KEY || 'skywebpro_right_panel_prefs_v1';
 const POST_HISTORY_KEY = C.POST_HISTORY_KEY || 'skywebpro_post_history_v1';
 const SEARCH_HISTORY_KEY = C.SEARCH_HISTORY_KEY || 'skywebpro_search_history_v1';
@@ -44,6 +49,7 @@ const NOTIF_POLL_MS_KEY = C.NOTIF_POLL_MS_KEY || 'skywebpro_notif_poll_ms_v1';
 const TOAST_DURATION_MS_KEY = C.TOAST_DURATION_MS_KEY || 'skywebpro_toast_duration_ms_v1';
 const STARTUP_TAB_MODE_KEY = C.STARTUP_TAB_MODE_KEY || 'skywebpro_startup_tab_mode_v1';
 const IMAGE_AUTOLOAD_MODE_KEY = C.IMAGE_AUTOLOAD_MODE_KEY || 'skywebpro_image_autoload_mode_v1';
+const TRANSLATION_MODE_KEY = C.TRANSLATION_MODE_KEY || 'skywebpro_translation_mode_v1';
 const POST_DENSITY_KEY = C.POST_DENSITY_KEY || 'skywebpro_post_density_v1';
 const FONT_SCALE_KEY = C.FONT_SCALE_KEY || 'skywebpro_font_scale_v1';
 const READING_WIDTH_KEY = C.READING_WIDTH_KEY || 'skywebpro_reading_width_v1';
@@ -56,6 +62,9 @@ const REPLY_TEMPLATE_KEY = C.REPLY_TEMPLATE_KEY || 'skywebpro_reply_template_v1'
 const POST_QUEUE_KEY = C.POST_QUEUE_KEY || 'skywebpro_post_queue_v1';
 const DM_READ_STATE_KEY = C.DM_READ_STATE_KEY || 'skywebpro_dm_read_state_v1';
 const LOG_LEVEL_KEY = C.LOG_LEVEL_KEY || 'skywebpro_log_level_v1';
+const BOOKMARKS_KEY = C.BOOKMARKS_KEY || 'skywebpro_bookmarks_v1';
+const MUTED_WORDS_KEY = C.MUTED_WORDS_KEY || 'skywebpro_muted_words_v1';
+const CUSTOM_FEEDS_KEY = C.CUSTOM_FEEDS_KEY || 'skywebpro_custom_feeds_v1';
 const CONNECTION_MODE_PREF_KEY = 'skywebpro_connection_mode_v1';
 const CONNECTION_PROXY_BASE_PREF_KEY = 'skywebpro_connection_proxy_base_v1';
 const ADVANCED_MODE_KEY = 'skywebpro_advanced_mode_v1';
@@ -81,6 +90,7 @@ const SETTINGS_EXPORT_KEYS = [
   NOTIF_POLL_MS_KEY,
   TOAST_DURATION_MS_KEY,
   IMAGE_AUTOLOAD_MODE_KEY,
+  TRANSLATION_MODE_KEY,
   INACTIVITY_TIMEOUT_MIN_KEY,
   POST_DENSITY_KEY,
   FONT_SCALE_KEY,
@@ -90,6 +100,9 @@ const SETTINGS_EXPORT_KEYS = [
   SEARCH_HISTORY_KEY,
   QUICK_NOTE_KEY,
   QUICK_NOTE_LIST_KEY,
+  BOOKMARKS_KEY,
+  MUTED_WORDS_KEY,
+  CUSTOM_FEEDS_KEY,
   CONNECTION_MODE_PREF_KEY,
   CONNECTION_PROXY_BASE_PREF_KEY,
   'skywebpro_drafts_v1',
@@ -109,6 +122,10 @@ let FEED_WIDTH_APPLY_LOCK = false;
 function safeStorageGet(key) {
   try { return localStorage.getItem(key); }
   catch { return APP_MEMORY_STORAGE.has(key) ? APP_MEMORY_STORAGE.get(key) : null; }
+}
+
+function initVirtualFeedRendering() {
+  document.querySelectorAll('.feed').forEach(feed => feed.classList.add('virtualized-feed'));
 }
 
 function safeStorageSet(key, value) {
@@ -262,7 +279,129 @@ function normalizeFeedRows(rows) {
   return (Array.isArray(rows) ? rows : []).map(item => {
     if (!item?.post) return item;
     return { ...item, post: normalizePost(item.post) };
-  });
+  }).filter(item => !isMutedPost(item?.post));
+}
+
+function getMutedWords() {
+  try {
+    const words = JSON.parse(safeStorageGet(MUTED_WORDS_KEY) || '[]');
+    return Array.isArray(words) ? words.map(v => String(v).trim().toLowerCase()).filter(Boolean) : [];
+  } catch { return []; }
+}
+
+function isMutedPost(post) {
+  if (!post) return false;
+  const source = `${post.record?.text || ''} ${post.author?.handle || ''} ${post.author?.displayName || ''}`.toLowerCase();
+  return getMutedWords().some(word => source.includes(word));
+}
+
+function getCustomFeeds() {
+  try {
+    const feeds = JSON.parse(safeStorageGet(CUSTOM_FEEDS_KEY) || '[]');
+    return Array.isArray(feeds) ? feeds.filter(feed => feed?.uri) : [];
+  } catch { return []; }
+}
+
+function saveCustomFeeds(feeds) {
+  safeStorageSet(CUSTOM_FEEDS_KEY, JSON.stringify(feeds.slice(0, 20)));
+}
+
+function renderMutedWords() {
+  const host = document.getElementById('muted-words-list');
+  if (!host) return;
+  const words = getMutedWords();
+  host.innerHTML = words.length ? words.map(word => `<span class="settings-chip">${escapeHtml(word)}<button type="button" data-remove-muted-word="${escapeHtml(word)}" aria-label="${escapeHtml(word)}を削除">×</button></span>`).join('') : '<span class="settings-row-desc">登録されたミュートワードはありません。</span>';
+}
+
+function addMutedWord() {
+  const input = document.getElementById('muted-word-input');
+  const word = String(input?.value || '').trim();
+  if (!word) return;
+  const words = getMutedWords();
+  if (!words.includes(word.toLowerCase())) {
+    words.push(word.toLowerCase());
+    safeStorageSet(MUTED_WORDS_KEY, JSON.stringify(words.slice(0, 100)));
+  }
+  if (input) input.value = '';
+  renderMutedWords();
+  if (S.tab === 'home' || S.tab === 'search' || S.tab === 'profile') reloadTab(S.tab);
+}
+
+function renderCustomFeeds() {
+  const host = document.getElementById('custom-feeds-list');
+  if (!host) return;
+  const feeds = getCustomFeeds();
+  host.innerHTML = feeds.length ? feeds.map((feed, index) => `<div class="settings-chip"><span>${escapeHtml(feed.name || feed.uri)}</span><button type="button" data-open-custom-feed="${index}">開く</button><button type="button" data-remove-custom-feed="${index}" aria-label="削除">×</button></div>`).join('') : '<span class="settings-row-desc">購読中のカスタムフィードはありません。</span>';
+}
+
+function addCustomFeed() {
+  const uriInput = document.getElementById('custom-feed-uri');
+  const nameInput = document.getElementById('custom-feed-name');
+  const uri = String(uriInput?.value || '').trim();
+  if (!/^at:\/\/[^/]+\/app\.bsky\.feed\.generator\/[^/]+$/.test(uri)) {
+    showToast('Feed Generatorのat:// URIを入力してください。', 'error');
+    return;
+  }
+  const feeds = getCustomFeeds().filter(feed => feed.uri !== uri);
+  feeds.unshift({ uri, name: String(nameInput?.value || '').trim() || uri });
+  saveCustomFeeds(feeds);
+  if (uriInput) uriInput.value = '';
+  if (nameInput) nameInput.value = '';
+  renderCustomFeeds();
+}
+
+function getBookmarks() {
+  try {
+    const raw = JSON.parse(safeStorageGet(BOOKMARKS_KEY) || '[]');
+    return Array.isArray(raw) ? raw.filter(item => item?.post?.uri) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveBookmarks(bookmarks) {
+  safeStorageSet(BOOKMARKS_KEY, JSON.stringify(bookmarks.slice(0, 200)));
+}
+
+function isBookmarked(uri) {
+  return getBookmarks().some(item => item.post.uri === uri);
+}
+window.__skywebproIsBookmarked = isBookmarked;
+
+function toggleBookmark(btn) {
+  const uri = String(btn.dataset.uri || '');
+  const post = NORMALIZED_STORE.posts.get(uri);
+  if (!uri || !post) {
+    showToast('投稿データを取得できないため保存できません。', 'error');
+    return;
+  }
+  const bookmarks = getBookmarks();
+  const index = bookmarks.findIndex(item => item.post.uri === uri);
+  if (index >= 0) {
+    bookmarks.splice(index, 1);
+    btn.classList.remove('active');
+    btn.title = 'ブックマークに保存';
+    showToast('ブックマークを解除しました');
+  } else {
+    bookmarks.unshift({ post, savedAt: new Date().toISOString() });
+    btn.classList.add('active');
+    btn.title = 'ブックマークを解除';
+    showToast('ブックマークに保存しました', 'success');
+  }
+  saveBookmarks(bookmarks);
+}
+
+function loadBookmarks() {
+  const feed = document.getElementById('bookmarks-feed');
+  if (!feed) return;
+  const bookmarks = getBookmarks();
+  feed.innerHTML = '';
+  if (!bookmarks.length) {
+    feed.innerHTML = renderEmpty('保存した投稿はありません', 'default');
+    return;
+  }
+  const myDid = S.session?.did;
+  bookmarks.forEach(item => appendCards(feed, renderPostCard({ post: normalizePost(item.post) }, myDid)));
 }
 
 function getCachedData(key, ttlMs) {
@@ -643,11 +782,85 @@ function resetShortcutPrefs() {
 
 function getImageAutoloadMode() {
   const mode = String(safeStorageGet(IMAGE_AUTOLOAD_MODE_KEY) || 'always');
-  return mode === 'wifi' ? 'wifi' : 'always';
+  return ['wifi', 'hidden'].includes(mode) ? mode : 'always';
+}
+
+function getTranslationMode() {
+  return String(safeStorageGet(TRANSLATION_MODE_KEY) || '') === '1';
+}
+
+function setTranslationMode(enabled) {
+  safeStorageSet(TRANSLATION_MODE_KEY, enabled ? '1' : '0');
+}
+
+function syncTranslationModeUi() {
+  const input = document.getElementById('settings-translation-mode');
+  if (input) input.checked = getTranslationMode();
+}
+
+async function translatePostCard(card, force = false) {
+  const textEl = card?.querySelector('.post-text');
+  const button = card?.querySelector('.translate-btn');
+  if (!textEl || !button) return;
+  const original = button.dataset.translateText || '';
+  if (!original) return;
+  const uri = card.dataset.uri || '';
+  const translated = S.translatedPosts.get(uri);
+  if (translated && !force) {
+    const showing = card.dataset.translationShown === '1';
+    textEl.innerHTML = showing ? renderRichText(original) : renderRichText(translated);
+    card.dataset.translationShown = showing ? '0' : '1';
+    button.classList.toggle('active', !showing);
+    return;
+  }
+
+  button.disabled = true;
+  try {
+    const result = await apiTranslateText(original, 'ja');
+    if (!result) throw new Error('翻訳結果が空です');
+    S.translatedPosts.set(uri, result);
+    textEl.innerHTML = renderRichText(result);
+    card.dataset.translationShown = '1';
+    button.classList.add('active');
+  } catch (e) {
+    showErrorToast(e, '翻訳に失敗しました。');
+  } finally {
+    button.disabled = false;
+  }
+
+}
+
+function scheduleAutoTranslations(root = document) {
+  if (!getTranslationMode()) return;
+  root.querySelectorAll?.('.post-card').forEach(card => {
+    if (card.dataset.translationAutoStarted === '1') return;
+    const text = card.querySelector('.translate-btn')?.dataset.translateText || '';
+    if (!text || /[\u3040-\u30ff\u3400-\u9fff]/.test(text)) return;
+    card.dataset.translationAutoStarted = '1';
+    translatePostCard(card);
+  });
+}
+
+function mountHlsVideos(root = document) {
+  root.querySelectorAll?.('video[data-hls-src]').forEach(video => {
+    if (video.dataset.hlsMounted === '1') return;
+    const src = video.dataset.hlsSrc;
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = src;
+    } else if (window.Hls?.isSupported()) {
+      const hls = new window.Hls();
+      hls.loadSource(src);
+      hls.attachMedia(video);
+      video._skyHls = hls;
+    } else {
+      video.setAttribute('data-video-error', '1');
+    }
+    video.dataset.hlsMounted = '1';
+  });
 }
 
 function setImageAutoloadMode(mode) {
-  const next = mode === 'wifi' ? 'wifi' : 'always';
+  const next = ['wifi', 'hidden'].includes(mode) ? mode : 'always';
   safeStorageSet(IMAGE_AUTOLOAD_MODE_KEY, next);
   window.__skywebproImageAutoLoadMode = next;
 }
@@ -927,9 +1140,11 @@ function applyImportedSettings() {
   syncShortcutsEnabledUi();
   setShortcutsEnabled(getShortcutsEnabled());
   syncImageAutoloadUi();
+  syncTranslationModeUi();
   syncShortcutPrefsUi();
   setShortcutPrefs(getShortcutPrefs());
   setImageAutoloadMode(getImageAutoloadMode());
+  syncTranslationModeUi();
   setToastDurationMs(getToastDurationMs());
   setFontScaleMode(getFontScaleMode());
   setReadingWidthMode(getReadingWidthMode());
@@ -1344,8 +1559,11 @@ async function init() {
   syncImageAutoloadUi();
   syncShortcutPrefsUi();
   syncReplyTemplateUi();
+  renderMutedWords();
+  renderCustomFeeds();
   initMainWidthResizer();
   initLoadMoreObserver();
+  initVirtualFeedRendering();
   bindAll();
   registerServiceWorker();
 }
@@ -1356,8 +1574,8 @@ function getUiPrefs() {
     const raw = JSON.parse(safeStorageGet(UI_PREFS_KEY) || 'null');
     if (!raw || typeof raw !== 'object') return base;
     return {
-      tab: typeof raw.tab === 'string' ? raw.tab : base.tab,
-      homeSubTab: ['discover', 'following', 'pinned'].includes(raw.homeSubTab) ? raw.homeSubTab : 'following',
+      tab: ['home', 'notifications', 'search', 'dm', 'lists', 'bookmarks', 'profile', 'settings'].includes(raw.tab) ? raw.tab : base.tab,
+      homeSubTab: ['discover', 'following', 'custom', 'pinned'].includes(raw.homeSubTab) ? raw.homeSubTab : 'following',
       notifSubTab: ['all', 'mention', 'unread', 'nonfollowers'].includes(raw.notifSubTab) ? raw.notifSubTab : 'all',
       searchTab: ['posts', 'users', 'latest', 'trends'].includes(raw.searchTab) ? raw.searchTab : 'posts',
       profileSubTab: ['posts', 'replies', 'media', 'likes'].includes(raw.profileSubTab) ? raw.profileSubTab : 'posts',
@@ -1658,6 +1876,30 @@ function canStartDmWithProfile(profile) {
   return false;
 }
 
+async function openProfileList(actor, kind) {
+  const host = document.getElementById('profile-list-items');
+  const title = document.getElementById('profile-list-title');
+  if (!host) return;
+  host.innerHTML = renderSpinner();
+  title.textContent = kind === 'followers' ? 'フォロワー' : 'フォロー中';
+  openModalById('profile-list-modal', '#profile-list-close');
+  try {
+    const data = kind === 'followers' ? await withAuth(() => apiGetFollowers(actor)) : await withAuth(() => apiGetFollows(actor));
+    const users = [...(kind === 'followers' ? data.followers || [] : data.follows || [])];
+    const render = () => {
+      const sort = document.getElementById('profile-list-sort')?.value || 'recent';
+      const sorted = users.slice().sort((a, b) => {
+        if (sort === 'name') return String(a.displayName || a.handle).localeCompare(String(b.displayName || b.handle), 'ja');
+        if (sort === 'handle') return String(a.handle).localeCompare(String(b.handle));
+        return 0;
+      });
+      host.innerHTML = sorted.map(user => `<div class="settings-row profile-list-user" data-profile-handle="${escapeHtml(user.handle || user.did)}"><img class="user-card-av" src="${escapeHtml(sanitizeHttpUrl(user.avatar || ''))}" alt="" /><span>${escapeHtml(user.displayName || user.handle || user.did)}</span></div>`).join('') || '<div class="settings-row-desc">ユーザーがいません。</div>';
+    };
+    document.getElementById('profile-list-sort').onchange = render;
+    render();
+  } catch (e) { host.innerHTML = renderEmpty(toUserErrorMessage(e, '一覧取得に失敗しました')); }
+}
+
 function saveUiPrefs() {
   const next = {
     tab: S.tab,
@@ -1687,7 +1929,7 @@ function syncSubTabUi() {
 }
 
 function getBootTab() {
-  const allowed = new Set(['home', 'notifications', 'search', 'dm', 'lists', 'profile', 'settings']);
+  const allowed = new Set(['home', 'notifications', 'search', 'dm', 'lists', 'bookmarks', 'profile', 'settings']);
   return allowed.has(S.tab) ? S.tab : 'home';
 }
 
@@ -2235,6 +2477,12 @@ async function loadMyProfile() {
 //  タブ
 // =============================================
 function switchTab(tab) {
+  if (tab !== 'dm') {
+    document.getElementById('dm-chat-panel')?.classList.add('hidden');
+    document.body.classList.remove('dm-chat-open');
+    S.activeConvoId = null;
+    S.dmReplyTarget = null;
+  }
   S.tab = tab;
   if (['home', 'search', 'dm', 'notifications', 'profile'].includes(tab)) incActivity(tab);
   saveUiPrefs();
@@ -2256,7 +2504,7 @@ function switchTab(tab) {
     document.getElementById('trend-category-tabs')?.classList.toggle('hidden', S.searchTab !== 'trends');
     if (S.searchTab === 'trends') execSearch('');
   }
-  const feedIds = { home:'home-feed', notifications:'notif-feed', search:'search-feed', dm:'dm-list', lists:'lists-feed', profile:'profile-feed' };
+  const feedIds = { home:'home-feed', notifications:'notif-feed', search:'search-feed', dm:'dm-list', lists:'lists-feed', bookmarks:'bookmarks-feed', profile:'profile-feed' };
   const feedId = feedIds[tab];
   const feedEl = feedId ? document.getElementById(feedId) : null;
   if (feedEl && feedEl.childElementCount === 0) {
@@ -2265,6 +2513,8 @@ function switchTab(tab) {
     refreshHomeDiff();
   } else if (tab === 'notifications') {
     refreshNotifDiff();
+  } else if (tab === 'bookmarks') {
+    loadBookmarks();
   }
 }
 
@@ -2315,6 +2565,7 @@ async function loadTab(tab) {
     else if (tab === 'search')   { if (S.searchTab === 'trends') await execSearch(''); }
     else if (tab === 'profile')  await loadProfile();
     else if (tab === 'lists')    await loadLists();
+    else if (tab === 'bookmarks') loadBookmarks();
     else if (tab === 'dm')       await loadDM();
     else if (tab === 'settings') { /* 設定タブは静的HTML */ }
   } catch(e) { showErrorToast(e, '読み込みに失敗しました。'); }
@@ -2344,6 +2595,14 @@ async function loadHome() {
   const mergedPinnedQuery = pinned.map(q => `(${q})`).join(' OR ');
   const key = cacheKey(['home', S.homeSubTab, 'first', mergedPinnedQuery]);
   if (S.homeSubTab === 'discover') data = await fetchWithLocalCache(key, 20000, () => withAuth(() => apiGetDiscover(null)));
+  else if (S.homeSubTab === 'custom') {
+    const uri = S.customFeedUri || getCustomFeeds()[0]?.uri;
+    if (!uri) {
+      feed.innerHTML = renderEmpty('設定からカスタムフィードを購読してください', 'home');
+      return;
+    }
+    data = await withAuth(() => apiGetFeed(uri, null));
+  }
   else if (S.homeSubTab === 'pinned') {
     const q = applyJapanSearchHint(mergedPinnedQuery || getPinnedHomeQuery());
     data = await fetchWithLocalCache(key, 20000, () => withAuth(() => apiSearchPosts(q, null, 'latest')));
@@ -2743,7 +3002,7 @@ async function loadLists() {
         ${list.description ? `<div class="list-card-desc">${escapeHtml(list.description.slice(0,60))}</div>` : ''}
         <div class="list-card-count">${list.listItemCount||0}人</div>
       </div>
-      <button class="btn-sm" data-list-uri="${escapeHtml(list.uri)}" data-list-name="${escapeHtml(list.name)}">フィードを見る</button>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-sm" data-list-uri="${escapeHtml(list.uri)}" data-list-name="${escapeHtml(list.name)}">フィードを見る</button><button class="btn-sm" data-list-manage-uri="${escapeHtml(list.uri)}" data-list-manage-name="${escapeHtml(list.name)}">メンバー管理</button></div>
     </div>`);
   });
 }
@@ -2753,6 +3012,8 @@ async function openListFeed(listUri, listName) {
   const feed = document.getElementById('list-feed');
   const title = document.getElementById('list-feed-title');
   if (title) title.textContent = listName;
+  const manage = document.getElementById('list-manage-btn');
+  if (manage) { manage.dataset.listUri = listUri; manage.dataset.listName = listName; }
   container.classList.remove('hidden');
   feed.innerHTML = renderSpinner();
   try {
@@ -2762,6 +3023,38 @@ async function openListFeed(listUri, listName) {
     const myDid = S.session?.did;
     data.feed.forEach(item => appendCards(feed, renderPostCard(item, myDid)));
   } catch(e) { feed.innerHTML = renderEmpty(e.message); }
+}
+
+async function openListMembers(listUri, listName) {
+  const host = document.getElementById('list-members-list');
+  const title = document.getElementById('list-members-title');
+  if (!host) return;
+  if (title) title.textContent = `${listName} のメンバー`;
+  host.innerHTML = renderSpinner();
+  openModalById('list-members-modal', '#list-members-close');
+  try {
+    const data = await withAuth(() => apiGetListMembers(listUri));
+    host.innerHTML = (data.items || []).map(item => `<div class="settings-row">
+      <span>${escapeHtml(item.subject?.displayName || item.subject?.handle || item.subject?.did || '')}</span>
+      <button class="btn-sm danger" type="button" data-remove-list-member="${escapeHtml(item.uri)}">削除</button>
+    </div>`).join('') || '<div class="settings-row-desc">メンバーがいません。</div>';
+    host.dataset.listUri = listUri;
+  } catch (e) { host.innerHTML = renderEmpty(toUserErrorMessage(e, 'メンバー取得に失敗しました')); }
+}
+
+async function addListMember() {
+  const host = document.getElementById('list-members-list');
+  const input = document.getElementById('list-member-did');
+  const did = String(input?.value || '').trim();
+  if (!did || !host?.dataset.listUri) return;
+  try {
+    const profile = await withAuth(() => apiGetProfile(did.replace(/^@/, '')));
+    await withAuth(() => apiAddListMember(host.dataset.listUri, profile.did));
+    if (input) input.value = '';
+    showToast('リストに追加しました', 'success');
+    const title = document.getElementById('list-members-title')?.textContent || 'リスト';
+    await openListMembers(host.dataset.listUri, title.replace(/ のメンバー$/, ''));
+  } catch (e) { showErrorToast(e, 'メンバー追加に失敗しました。'); }
 }
 
 // =============================================
@@ -2830,6 +3123,18 @@ async function openConvo(convoId) {
   setDmReadState(convoId, true);
   renderDmConversationList();
   document.getElementById('dm-chat-panel').classList.remove('hidden');
+  document.body.classList.add('dm-chat-open');
+  const convo = S.dmConvos.find(item => String(item.id) === String(convoId));
+  const other = (convo?.members || []).find(member => member.did !== S.session?.did);
+  const chatAvatar = document.getElementById('dm-chat-avatar');
+  const chatName = document.getElementById('dm-chat-name');
+  const chatHandle = document.getElementById('dm-chat-handle');
+  if (chatAvatar) {
+    chatAvatar.src = sanitizeHttpUrl(other?.avatar || '');
+    chatAvatar.alt = other?.displayName || other?.handle || '';
+  }
+  if (chatName) chatName.textContent = other?.displayName || other?.handle || 'メッセージ';
+  if (chatHandle) chatHandle.textContent = other?.handle ? `@${other.handle}` : '';
   const msgs = document.getElementById('dm-messages');
   msgs.innerHTML = renderSpinner();
   const t0 = performance.now();
@@ -2840,6 +3145,7 @@ async function openConvo(convoId) {
     list.forEach(m => {
       const mine = m.sender?.did === S.session?.did;
       appendCards(msgs, `<div class="dm-msg ${mine?'mine':'theirs'}">
+        <button class="dm-reply-btn" type="button" data-dm-reply-id="${escapeHtml(m.id || m.messageId || '')}" data-dm-reply-text="${escapeHtml(m.text || '')}">返信</button>
         <div class="dm-bubble">${escapeHtml(m.text||'')}</div>
         <div class="dm-msg-time">${formatTime(m.sentAt)}</div>
       </div>`);
@@ -2858,7 +3164,13 @@ async function sendDM() {
     if (!ok) return;
   }
   inp.value = '';
-  try { await withAuth(() => apiSendMessage(S.activeConvoId, text)); incActivity('dm'); await openConvo(S.activeConvoId); }
+  try {
+    await withAuth(() => apiSendMessage(S.activeConvoId, text, S.dmReplyTarget));
+    S.dmReplyTarget = null;
+    document.getElementById('dm-reply-context')?.classList.add('hidden');
+    incActivity('dm');
+    await openConvo(S.activeConvoId);
+  }
   catch(e) { showErrorToast(e, 'DM送信に失敗しました。'); }
 }
 
@@ -2938,6 +3250,7 @@ function switchSearchTab(sub) {
 
 async function execSearch(q) {
   const term = String(q || '').trim();
+  S.searchQuery = term;
   if (!term && S.searchTab !== 'trends') return;
   if (SEARCH_ABORT_CONTROLLER) SEARCH_ABORT_CONTROLLER.abort();
   SEARCH_ABORT_CONTROLLER = new AbortController();
@@ -2949,16 +3262,20 @@ async function execSearch(q) {
       const sort = S.searchTab === 'latest' ? 'latest' : 'top';
       const query = applyJapanSearchHint(term);
       const data = await withAuth(() => apiSearchPosts(query, null, sort, signal));
+      S.cursors.search = data.cursor || null;
       feed.innerHTML = '';
       if (!data.posts?.length) { feed.innerHTML = renderEmpty('投稿が見つかりません', 'search', { action: 'search-latest', label: '最新で再検索' }); return; }
       const myDid = S.session?.did;
       data.posts.forEach(p => appendCards(feed, renderPostCard({ post: p }, myDid)));
+      if (data.cursor) addLoadMoreBtn(feed, 'search');
       incActivity('search');
     } else if (S.searchTab === 'users') {
       const data = await withAuth(() => apiSearchActors(term, null, signal));
+      S.cursors.search = data.cursor || null;
       feed.innerHTML = '';
       if (!data.actors?.length) { feed.innerHTML = renderEmpty('ユーザーが見つかりません', 'search', { action: 'search-posts', label: '投稿を検索' }); return; }
       data.actors.forEach(a => appendCards(feed, renderUserCard(a, true, canStartDmWithProfile(a))));
+      if (data.cursor) addLoadMoreBtn(feed, 'search');
       incActivity('search');
     } else if (S.searchTab === 'trends') {
       const data = await withAuth(() => apiGetTrendingTopics(30, signal));
@@ -3032,11 +3349,14 @@ function syncReplyTemplateUi() {
 function handleImageSelect(e) {
   const files = Array.from(e.target.files);
   const rem = 4 - S.pendingImgs.length;
-  const validImages = files.filter(f => f.type.startsWith('image/'));
+  const validImages = files.filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
   const isProxyMode = getSafeConnectionConfig().mode === 'proxy';
-  const sizeOk = isProxyMode ? validImages : validImages.filter(f => f.size <= APP_MAX_IMAGE_BYTES);
+  const sizeOk = isProxyMode ? validImages : validImages.filter(f => f.size <= (f.type.startsWith('video/') ? APP_MAX_VIDEO_BYTES : APP_MAX_IMAGE_BYTES));
   const rejected = isProxyMode ? 0 : validImages.length - sizeOk.length;
-  S.pendingImgs.push(...sizeOk.slice(0, rem));
+  if (validImages.some(f => f.type.startsWith('video/')) && validImages.length > 1) {
+    showToast('動画投稿は1ファイルのみです。', 'info');
+  }
+  S.pendingImgs.push(...sizeOk.slice(0, rem).filter((file, index) => !file.type.startsWith('video/') || index === 0));
   if (rejected > 0) showToast(`2MBを超える画像を ${rejected} 枚除外しました`, 'info');
   if (sizeOk.length > rem) showToast(`画像は最大4枚です。${Math.max(0,rem)}枚追加しました。`, 'info');
   renderPreviews();
@@ -3116,11 +3436,18 @@ function renderPreviews() {
   area.classList.remove('hidden');
   area.innerHTML = S.pendingImgs.map((f, i) => `
     <div class="preview-thumb">
-      <img src="${URL.createObjectURL(f)}" alt=""/>
+      ${f.type.startsWith('video/') ? `<video src="${URL.createObjectURL(f)}" controls muted></video>` : `<img src="${URL.createObjectURL(f)}" alt=""/>`}
+      <input class="preview-alt" data-alt-index="${i}" maxlength="1000" placeholder="ALT（任意）"/>
+      ${S.failedImageIndexes.includes(i) ? `<button class="preview-retry" data-retry-image="${i}" type="button">再試行</button>` : ''}
       <button class="preview-rm" data-i="${i}">✕</button>
     </div>`).join('');
+  area.querySelectorAll('.preview-retry').forEach(b => b.addEventListener('click', () => {
+    S.failedImageIndexes = [Number(b.dataset.retryImage)];
+    handlePost();
+  }));
   area.querySelectorAll('.preview-rm').forEach(b => b.addEventListener('click', () => {
     S.pendingImgs.splice(+b.dataset.i, 1);
+    S.failedImageIndexes = S.failedImageIndexes.filter(index => index !== +b.dataset.i).map(index => index > +b.dataset.i ? index - 1 : index);
     renderPreviews();
     refreshRightStats();
   }));
@@ -3164,7 +3491,15 @@ function setReply(uri, cid, handle) {
       S.replyTarget.rootUri = root.uri;
       S.replyTarget.rootCid = root.cid;
     }
+
   }).catch(() => {});
+}
+
+function getPendingMedia() {
+  return S.pendingImgs.map((file, index) => ({
+    file,
+    alt: String(document.querySelector(`[data-alt-index="${index}"]`)?.value || ''),
+  }));
 }
 
 function cancelReply() {
@@ -3208,12 +3543,13 @@ async function handlePost() {
   if ([...text].length > POST_TEXT_MAX_CHARS) { showToast(`${POST_TEXT_MAX_CHARS}文字以内にしてください`, 'error'); return; }
   setLoading(btn, true);
   try {
-    await withAuth(() => apiPost(text, S.pendingImgs, S.replyTarget, restriction));
+    const media = getPendingMedia();
+    await withAuth(() => apiPost(text, media, S.replyTarget, restriction));
     logPostActivity(text, S.pendingImgs.length);
     clearFetchCache('home::');
     clearFetchCache('profile::');
     incActivity('posts');
-    ta.value = ''; S.pendingImgs = []; renderPreviews(); cancelReply(); updateCharCount(); renderComposeHashtagSuggestions();
+    ta.value = ''; S.pendingImgs = []; S.failedImageIndexes = []; renderPreviews(); cancelReply(); updateCharCount(); renderComposeHashtagSuggestions();
     clearComposeCache();
     showToast('投稿しました！', 'success');
     reloadTab('home');
@@ -3221,9 +3557,11 @@ async function handlePost() {
     refreshRightStats();
   } catch(e) {
     if (e?.code === 'IMAGE_UPLOAD_PARTIAL_FAILURE') {
-      const count = Array.isArray(e.failedUploads) ? e.failedUploads.length : 1;
-      showToast(`画像 ${count} 枚のアップロードに失敗しました。再試行してください。`, 'error');
-      return;
+        S.failedImageIndexes = (e.failedUploads || []).map(item => Number(item.index)).filter(Number.isInteger);
+        const count = Array.isArray(e.failedUploads) ? e.failedUploads.length : 1;
+        renderPreviews();
+        showToast(`画像 ${count} 枚のアップロードに失敗しました。赤い再試行ボタンを押してください。`, 'error');
+        return;
     }
     if (isOfflineLikeError(e)) {
       enqueuePost({ text, restriction, replyTarget: S.replyTarget || null, source: 'compose' });
@@ -3601,14 +3939,26 @@ async function handleLoadMore(btn) {
   if (S.loading[tab]) return;
   S.loading[tab] = true;
   btn.textContent = '読み込み中…'; btn.disabled = true;
-  const feedMap = { home:'home-feed', notifications:'notif-feed', profile:'profile-feed' };
+  const feedMap = { home:'home-feed', notifications:'notif-feed', profile:'profile-feed', search:'search-feed' };
   const feed = feedMap[tab] ? document.getElementById(feedMap[tab]) : null;
   try {
     const cursor = S.cursors[tab];
     const myDid  = S.session?.did;
-    if (tab === 'home') {
+    if (tab === 'search') {
+      const term = S.searchQuery;
+      const data = S.searchTab === 'users'
+        ? await withAuth(() => apiSearchActors(term, cursor))
+        : await withAuth(() => apiSearchPosts(applyJapanSearchHint(term), cursor, S.searchTab === 'latest' ? 'latest' : 'top'));
+      btn.remove();
+      if (S.searchTab === 'users') (data.actors || []).forEach(a => appendCards(feed, renderUserCard(a, true, canStartDmWithProfile(a))));
+      else normalizeFeedRows((data.posts || []).map(post => ({ post }))).forEach(item => appendCards(feed, renderPostCard(item, myDid)));
+      S.cursors.search = data.cursor || null;
+      if (data.cursor) addLoadMoreBtn(feed, 'search');
+    } else if (tab === 'home') {
       const data = S.homeSubTab === 'discover'
         ? await withAuth(() => apiGetDiscover(cursor))
+        : S.homeSubTab === 'custom'
+          ? await withAuth(() => apiGetFeed(S.customFeedUri || getCustomFeeds()[0]?.uri, cursor))
         : S.homeSubTab === 'pinned'
           ? await withAuth(() => apiSearchPosts(applyJapanSearchHint(getPinnedHomeQuery()), cursor, 'latest'))
           : await withAuth(() => apiGetTimeline(cursor));
@@ -3955,6 +4305,11 @@ function bindAll() {
 
   // サブタブ
   document.querySelectorAll('#tab-home .sub-tab').forEach(b => b.addEventListener('click', () => switchHomeSubTab(b.dataset.sub)));
+  document.getElementById('muted-word-add')?.addEventListener('click', addMutedWord);
+  document.getElementById('custom-feed-add')?.addEventListener('click', addCustomFeed);
+  document.getElementById('list-member-add')?.addEventListener('click', addListMember);
+  document.getElementById('list-members-close')?.addEventListener('click', () => document.getElementById('list-members-modal')?.classList.add('hidden'));
+  document.getElementById('profile-list-close')?.addEventListener('click', () => document.getElementById('profile-list-modal')?.classList.add('hidden'));
   document.querySelectorAll('#tab-notifications .sub-tab').forEach(b => b.addEventListener('click', () => switchNotifSubTab(b.dataset.sub)));
   document.querySelectorAll('#tab-search .sub-tab').forEach(b => b.addEventListener('click', () => switchSearchTab(b.dataset.sub)));
   document.querySelectorAll('#tab-profile .sub-tab').forEach(b => b.addEventListener('click', () => switchProfileSubTab(b.dataset.sub)));
@@ -4076,7 +4431,16 @@ function bindAll() {
   document.getElementById('dm-image-btn')?.addEventListener('click', handleDmImageScaffold);
   document.getElementById('dm-send-btn').addEventListener('click', sendDM);
   document.getElementById('dm-input').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendDM(); } });
-  document.getElementById('dm-back-btn').addEventListener('click', () => document.getElementById('dm-chat-panel').classList.add('hidden'));
+  document.getElementById('dm-back-btn').addEventListener('click', () => {
+    document.getElementById('dm-chat-panel').classList.add('hidden');
+   document.body.classList.remove('dm-chat-open');
+   S.activeConvoId = null;
+   S.dmReplyTarget = null;
+  });
+  document.getElementById('dm-reply-cancel')?.addEventListener('click', () => {
+    S.dmReplyTarget = null;
+    document.getElementById('dm-reply-context')?.classList.add('hidden');
+  });
   document.getElementById('dm-start-cancel')?.addEventListener('click', closeDmStartModal);
   document.getElementById('dm-start-submit')?.addEventListener('click', submitDmStart);
   document.getElementById('dm-start-handle')?.addEventListener('keydown', e => {
@@ -4108,6 +4472,11 @@ function bindAll() {
   document.getElementById('settings-inactivity-timeout')?.addEventListener('change', onInactivityTimeoutChange);
   document.getElementById('settings-post-density')?.addEventListener('change', onPostDensityModeChange);
   document.getElementById('settings-image-autoload')?.addEventListener('change', onImageAutoloadModeChange);
+  document.getElementById('settings-translation-mode')?.addEventListener('change', e => {
+    setTranslationMode(e.target.checked);
+    if (e.target.checked) scheduleAutoTranslations();
+    showToast(`翻訳モードを${e.target.checked ? '有効' : '無効'}にしました`, 'success', 1400);
+  });
   document.getElementById('settings-connection-mode')?.addEventListener('change', () => {
     const result = applyConnectionModeFromUi('settings');
     if (!result.ok) {
@@ -4200,6 +4569,12 @@ function bindAll() {
 
   // 委任クリック（フィード内全て）
   document.addEventListener('click', handleDelegatedClick);
+  document.querySelectorAll('.feed').forEach(feed => {
+    new MutationObserver(() => {
+      scheduleAutoTranslations(feed);
+      mountHlsVideos(feed);
+    }).observe(feed, { childList: true, subtree: true });
+  });
   document.addEventListener('click', handleExternalLinkGuard, true);
   document.addEventListener('keydown', handleGlobalKeydown);
   document.addEventListener('visibilitychange', handleVisibilityForNotifPoll);
@@ -4433,7 +4808,7 @@ async function handleLoginConnectivityCheck() {
 // =============================================
 //  委任クリックハンドラー（全フィード共通）
 // =============================================
-function handleDelegatedClick(e) {
+async function handleDelegatedClick(e) {
   const emptyActionBtn = e.target.closest('[data-empty-action]');
   if (emptyActionBtn) {
     const action = String(emptyActionBtn.dataset.emptyAction || '').trim();
@@ -4490,16 +4865,43 @@ function handleDelegatedClick(e) {
     return;
   }
 
+  const dmReplyBtn = e.target.closest('[data-dm-reply-id]');
+  if (dmReplyBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    S.dmReplyTarget = { id: dmReplyBtn.dataset.dmReplyId };
+    const context = document.getElementById('dm-reply-context');
+    const label = document.getElementById('dm-reply-text');
+    if (label) label.textContent = `返信: ${dmReplyBtn.dataset.dmReplyText || ''}`;
+    context?.classList.remove('hidden');
+    document.getElementById('dm-input')?.focus();
+    return;
+  }
+
   const loadImagesBtn = e.target.closest('.load-images-btn');
   if (loadImagesBtn) {
-    const container = loadImagesBtn.closest('.post-images');
+    const container = loadImagesBtn.closest('.post-media-block')?.querySelector('.post-images') || loadImagesBtn.closest('.post-images');
     if (container) {
-      container.querySelectorAll('img[data-src]').forEach(img => {
-        img.src = img.dataset.src || '';
-        img.removeAttribute('data-src');
-      });
-      container.querySelectorAll('.img-item.hidden').forEach(el => el.classList.remove('hidden'));
-      loadImagesBtn.closest('.post-images-blocked')?.remove();
+      const loaded = container.dataset.imagesLoaded === '1';
+      const visible = container.dataset.imagesVisible === '1';
+      if (!loaded) {
+        container.querySelectorAll('img[data-src]').forEach(img => {
+          img.src = img.dataset.src || '';
+          img.removeAttribute('data-src');
+        });
+        container.querySelectorAll('.img-item.hidden').forEach(el => el.classList.remove('hidden'));
+        container.dataset.imagesLoaded = '1';
+        container.dataset.imagesVisible = '1';
+        loadImagesBtn.textContent = '画像を非表示';
+      } else if (visible) {
+        container.querySelectorAll('.img-item').forEach(el => { el.classList.add('hidden'); });
+        container.dataset.imagesVisible = '0';
+        loadImagesBtn.textContent = '画像を表示';
+      } else {
+        container.querySelectorAll('.img-item').forEach(el => { el.classList.remove('hidden'); });
+        container.dataset.imagesVisible = '1';
+        loadImagesBtn.textContent = '画像を非表示';
+      }
     }
     return;
   }
@@ -4606,6 +5008,24 @@ function handleDelegatedClick(e) {
     }
     return;
   }
+  const profileLink = e.target.closest('[data-profile-handle]');
+  if (profileLink) {
+    e.preventDefault();
+    openUserProfile(profileLink.dataset.profileHandle);
+    return;
+  }
+  const profileList = e.target.closest('[data-profile-list]');
+  if (profileList) {
+    e.preventDefault();
+    openProfileList(profileList.dataset.profileActor, profileList.dataset.profileList);
+    return;
+  }
+  const translateBtn = e.target.closest('.translate-btn');
+  if (translateBtn) {
+    const card = translateBtn.closest('.post-card');
+    if (card) translatePostCard(card);
+    return;
+  }
   // 返信ボタン
   const replyBtn = e.target.closest('.reply-btn');
   if (replyBtn) {
@@ -4619,6 +5039,8 @@ function handleDelegatedClick(e) {
   // リポスト
   const repostBtn = e.target.closest('.repost-btn');
   if (repostBtn) { handleRepost(repostBtn); return; }
+  const bookmarkBtn = e.target.closest('.bookmark-btn');
+  if (bookmarkBtn) { toggleBookmark(bookmarkBtn); return; }
   // 引用リポスト表示トグル
   const quoteBtn = e.target.closest('.quote-btn');
   if (quoteBtn) {
@@ -4690,10 +5112,40 @@ function handleDelegatedClick(e) {
   const followBtn = e.target.closest('.follow-toggle-btn');
   if (followBtn) { handleFollowToggle(followBtn); return; }
   // リストフィード
-  const listBtn = e.target.closest('[data-list-uri]');
+  const listBtn = e.target.closest('[data-list-uri], [data-list-manage-uri]');
   if (listBtn && listBtn.tagName === 'BUTTON') {
+    if (listBtn.dataset.listManageUri) {
+      openListMembers(listBtn.dataset.listManageUri, listBtn.dataset.listManageName || 'リスト');
+      return;
+    }
     openListFeed(listBtn.dataset.listUri, listBtn.dataset.listName || 'リスト');
     return;
+  }
+  const removeMember = e.target.closest('[data-remove-list-member]');
+  if (removeMember) {
+    try {
+      await withAuth(() => apiRemoveListMember(removeMember.dataset.removeListMember));
+      removeMember.closest('.settings-row')?.remove();
+      showToast('リストから削除しました', 'success');
+    } catch (err) { showErrorToast(err, 'メンバー削除に失敗しました。'); }
+    return;
+  }
+  const removeMuted = e.target.closest('[data-remove-muted-word]');
+  if (removeMuted) {
+    safeStorageSet(MUTED_WORDS_KEY, JSON.stringify(getMutedWords().filter(word => word !== removeMuted.dataset.removeMutedWord)));
+    renderMutedWords();
+    return;
+  }
+  const removeFeed = e.target.closest('[data-remove-custom-feed]');
+  if (removeFeed) {
+    const feeds = getCustomFeeds();
+    feeds.splice(Number(removeFeed.dataset.removeCustomFeed), 1);
+    saveCustomFeeds(feeds); renderCustomFeeds(); return;
+  }
+  const openFeed = e.target.closest('[data-open-custom-feed]');
+  if (openFeed) {
+    S.customFeedUri = getCustomFeeds()[Number(openFeed.dataset.openCustomFeed)]?.uri || '';
+    switchTab('home'); S.homeSubTab = 'custom'; syncSubTabUi(); reloadTab('home'); return;
   }
   // DM会話
   const dmCard = e.target.closest('.dm-convo-card');

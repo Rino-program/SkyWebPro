@@ -37,7 +37,10 @@ function formatTime(iso) {
 }
 
 function renderRichText(text, facets = []) {
-  if (!facets?.length) return escapeHtml(text).replace(/\n/g,'<br>');
+  if (!facets?.length) {
+    const escaped = escapeHtml(text).replace(/\n/g, '<br>');
+    return escaped.replace(/(^|[\s>])@([a-z0-9][a-z0-9.-]*\.[a-z]{2,})\b/gi, '$1<a href="#" data-profile-handle="$2">@$2</a>');
+  }
   const enc = new TextEncoder(), dec = new TextDecoder();
   const bytes = enc.encode(text);
   const sorted = [...facets].sort((a,b) => a.index.byteStart - b.index.byteStart);
@@ -54,7 +57,7 @@ function renderRichText(text, facets = []) {
         : seg;
     }
     else if (ft?.$type === 'app.bsky.richtext.facet#mention')
-      out += `<a href="https://bsky.app/profile/${encodeURIComponent(toSafeProfileId(ft.did))}" target="_blank" rel="noopener noreferrer">${seg}</a>`;
+      out += `<a href="#" data-profile-handle="${escapeHtml(toSafeProfileId(ft.did))}">${seg}</a>`;
     else if (ft?.$type === 'app.bsky.richtext.facet#tag')
       out += `<a href="#" data-hashtag-search="${escapeHtml(String(ft.tag || ''))}">${seg}</a>`;
     else out += seg;
@@ -160,8 +163,19 @@ function getEmbedImages(embed) {
   return [];
 }
 
+function renderVideoEmbed(embed) {
+  if (!embed) return '';
+  const candidate = embed.$type === 'app.bsky.embed.recordWithMedia#view' ? embed.media : embed;
+  if (candidate?.$type !== 'app.bsky.embed.video#view') return '';
+  const src = sanitizeHttpUrl(candidate.playlist || candidate.video?.ref?.link || candidate.video?.url || '');
+  if (!src) return '';
+  const type = /\.m3u8(?:$|\?)/i.test(src) ? 'application/x-mpegURL' : 'video/mp4';
+  return `<video class="post-video" controls playsinline preload="metadata" ${type === 'application/x-mpegURL' ? `data-hls-src="${escapeHtml(src)}"` : `src="${escapeHtml(src)}"`} poster="${escapeHtml(sanitizeHttpUrl(candidate.thumbnail || ''))}" aria-label="${escapeHtml(candidate.alt || '投稿動画')}">${type === 'application/x-mpegURL' ? '' : `<source src="${escapeHtml(src)}" type="${type}"/>`}お使いのブラウザでは動画を再生できません。</video>`;
+}
+
 function shouldAutoLoadFeedImages() {
   const mode = String(window.__skywebproImageAutoLoadMode || 'always');
+  if (mode === 'hidden') return false;
   if (mode !== 'wifi') return true;
   const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
   if (!conn) return true;
@@ -182,9 +196,9 @@ function renderImagesGrid(images) {
   }));
   const json = escapeHtml(JSON.stringify(safeImages.map(img => ({ fullsize: img.fullsize, alt: img.alt }))));
   if (!shouldAutoLoadFeedImages()) {
-    return `<div class="post-images count-${n}" data-images-json="${json}">${safeImages.map((img, idx) =>
+    return `<div class="post-media-block"><div class="post-images count-${n}" data-images-json="${json}">${safeImages.map((img, idx) =>
       `<div class="img-item cursor-pointer hidden" data-img-index="${idx}"><img data-src="${escapeHtml(img.thumb)}" alt="${escapeHtml(img.alt)}" ${img.ratioW > 0 && img.ratioH > 0 ? `width="${img.ratioW}" height="${img.ratioH}" style="aspect-ratio:${img.ratioW}/${img.ratioH}"` : ''} loading="lazy" decoding="async" fetchpriority="low" onerror="this.parentElement.style.display='none'"/></div>`
-    ).join('')}<div class="post-images-blocked"><button class="btn-sm load-images-btn" type="button">画像を読み込む</button></div></div>`;
+      ).join('')}</div><button class="btn-sm load-images-btn" type="button">画像を表示</button></div>`;
   }
   return `<div class="post-images count-${n}" data-images-json="${json}">${safeImages.map((img, idx) =>
     `<div class="img-item cursor-pointer" data-img-index="${idx}"><img src="${escapeHtml(img.thumb)}" alt="${escapeHtml(img.alt)}" ${img.ratioW > 0 && img.ratioH > 0 ? `width="${img.ratioW}" height="${img.ratioH}" style="aspect-ratio:${img.ratioW}/${img.ratioH}"` : ''} loading="lazy" decoding="async" fetchpriority="low" onerror="this.parentElement.style.display='none'"/></div>`
@@ -236,12 +250,14 @@ function renderPostCard(item, myDid, opts = {}) {
 
   const images    = getEmbedImages(post.embed);
   const quoteHtml = renderQuoteEmbed(post.embed);
+  const videoHtml = renderVideoEmbed(post.embed);
   const isMine    = post.author.did === myDid;
 
   const liked     = !!post.viewer?.like;
   const reposted  = !!post.viewer?.repost;
   const likeUri   = post.viewer?.like   || '';
   const repostUri = post.viewer?.repost || '';
+  const bookmarked = typeof window.__skywebproIsBookmarked === 'function' && window.__skywebproIsBookmarked(post.uri);
 
   const uri     = escapeHtml(post.uri);
   const cid     = escapeHtml(post.cid);
@@ -270,6 +286,7 @@ function renderPostCard(item, myDid, opts = {}) {
       </div>
       <div class="post-text">${renderRichText(record.text||'', record.facets)}</div>
       ${images.length ? renderImagesGrid(images) : ''}
+      ${videoHtml}
       ${quoteHtml}
       <div class="post-actions">
         <button class="act-btn reply-btn" data-uri="${uri}" data-cid="${cid}" data-handle="${handle}" title="返信">
@@ -283,9 +300,13 @@ function renderPostCard(item, myDid, opts = {}) {
         <button class="act-btn quote-btn" data-uri="${uri}" data-cid="${cid}" title="引用リポスト">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="9" x2="15" y2="9"/></svg>
         </button>
+        <button class="act-btn translate-btn" data-uri="${uri}" data-translate-text="${escapeHtml(record.text || '')}" title="Googleで翻訳" aria-label="Googleで翻訳">文</button>
         <button class="act-btn like-btn ${liked?'active':''}" data-uri="${uri}" data-cid="${cid}" data-like-uri="${escapeHtml(likeUri)}" title="いいね">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="${liked?'currentColor':'none'}" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
           <span class="act-count">${post.likeCount||0}</span>
+        </button>
+        <button class="act-btn bookmark-btn ${bookmarked?'active':''}" data-uri="${uri}" title="${bookmarked?'ブックマークを解除':'ブックマークに保存'}" aria-label="${bookmarked?'ブックマークを解除':'ブックマークに保存'}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="${bookmarked?'currentColor':'none'}" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4z"/></svg>
         </button>
         <button class="act-btn thread-toggle-btn" data-uri="${uri}" title="返信を表示">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
@@ -440,8 +461,8 @@ function renderProfilePanel(profile, options = {}) {
       <div class="prof-panel-handle">@${escapeHtml(profile.handle)}</div>
       ${profile.description ? `<div class="prof-panel-desc">${autoLinkText(profile.description)}</div>` : ''}
       <div class="prof-panel-stats">
-        <span><strong>${profile.followsCount||0}</strong> フォロー中</span>
-        <span><strong>${profile.followersCount||0}</strong> フォロワー</span>
+        <button class="profile-stat-btn" data-profile-list="following" data-profile-actor="${escapeHtml(profile.did)}"><strong>${profile.followsCount||0}</strong> フォロー中</button>
+        <button class="profile-stat-btn" data-profile-list="followers" data-profile-actor="${escapeHtml(profile.did)}"><strong>${profile.followersCount||0}</strong> フォロワー</button>
         <span><strong>${profile.postsCount||0}</strong> 投稿</span>
       </div>
     </div>
